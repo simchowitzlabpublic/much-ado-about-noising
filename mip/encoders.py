@@ -1,5 +1,4 @@
-"""
-Observation encoder.
+"""Observation encoder.
 
 Port from https://github.com/CleanDiffuserTeam/CleanDiffuser
 
@@ -7,12 +6,12 @@ Author: Chaoyi Pan
 Date: 2025-10-03
 """
 
-from typing import Callable, Union, Tuple, Dict
 import copy
+from collections.abc import Callable
 
 import torch
-import torchvision
 import torch.nn as nn
+import torchvision
 import torchvision.transforms.functional as ttf
 
 import mip.torch_utils as tu
@@ -34,9 +33,7 @@ def get_mask(
 
 
 class CropRandomizer(nn.Module):
-    """
-    Randomly sample crops at input, and then average across crop features at output.
-    """
+    """Randomly sample crops at input, and then average across crop features at output."""
 
     def __init__(
         self,
@@ -46,14 +43,13 @@ class CropRandomizer(nn.Module):
         num_crops=1,
         pos_enc=False,
     ):
-        """
-        Args:
-            input_shape (tuple, list): shape of input (not including batch dimension)
-            crop_height (int): crop height
-            crop_width (int): crop width
-            num_crops (int): number of random crops to take
-            pos_enc (bool): if True, add 2 channels to the output to encode the spatial
-                location of the cropped pixels in the source image
+        """Args:
+        input_shape (tuple, list): shape of input (not including batch dimension)
+        crop_height (int): crop height
+        crop_width (int): crop width
+        num_crops (int): number of random crops to take
+        pos_enc (bool): if True, add 2 channels to the output to encode the spatial
+            location of the cropped pixels in the source image
         """
         super().__init__()
 
@@ -68,8 +64,7 @@ class CropRandomizer(nn.Module):
         self.pos_enc = pos_enc
 
     def output_shape_in(self, input_shape=None):
-        """
-        Function to compute output shape from inputs to this module. Corresponds to
+        """Function to compute output shape from inputs to this module. Corresponds to
         the @forward_in operation, where raw inputs (usually observation modalities)
         are passed in.
 
@@ -81,7 +76,6 @@ class CropRandomizer(nn.Module):
         Returns:
             out_shape ([int]): list of integers corresponding to output shape
         """
-
         # outputs are shape (C, CH, CW), or maybe C + 2 if using position encoding, because
         # the number of crops are reshaped into the batch dimension, increasing the batch
         # size from B to B * N
@@ -89,8 +83,7 @@ class CropRandomizer(nn.Module):
         return [out_c, self.crop_height, self.crop_width]
 
     def output_shape_out(self, input_shape=None):
-        """
-        Function to compute output shape from inputs to this module. Corresponds to
+        """Function to compute output shape from inputs to this module. Corresponds to
         the @forward_out operation, where processed inputs (usually encoded observation
         modalities) are passed in.
 
@@ -102,15 +95,13 @@ class CropRandomizer(nn.Module):
         Returns:
             out_shape ([int]): list of integers corresponding to output shape
         """
-
         # since the forward_out operation splits [B * N, ...] -> [B, N, ...]
         # and then pools to result in [B, ...], only the batch dimension changes,
         # and so the other dimensions retain their shape.
         return list(input_shape)
 
     def forward_in(self, inputs):
-        """
-        Samples N random crops for each input in the batch, and then reshapes
+        """Samples N random crops for each input in the batch, and then reshapes
         inputs to [B * N, ...].
         """
         assert len(inputs.shape) >= 3  # must have at least (C, H, W) dimensions
@@ -141,8 +132,7 @@ class CropRandomizer(nn.Module):
             return out
 
     def forward_out(self, inputs):
-        """
-        Splits the outputs from shape [B * N, ...] -> [B, N, ...] and then average across N
+        """Splits the outputs from shape [B * N, ...] -> [B, N, ...] and then average across N
         to result in shape [B, ...] to make sure the network output is consistent with
         what would have happened if there were no randomization.
         """
@@ -163,16 +153,16 @@ class CropRandomizer(nn.Module):
 
     def __repr__(self):
         """Pretty print network."""
-        header = "{}".format(str(self.__class__.__name__))
-        msg = header + "(input_shape={}, crop_size=[{}, {}], num_crops={})".format(
-            self.input_shape, self.crop_height, self.crop_width, self.num_crops
+        header = f"{str(self.__class__.__name__)}"
+        msg = (
+            header
+            + f"(input_shape={self.input_shape}, crop_size=[{self.crop_height}, {self.crop_width}], num_crops={self.num_crops})"
         )
         return msg
 
 
 def crop_image_from_indices(images, crop_indices, crop_height, crop_width):
-    """
-    Crops images at the locations specified by @crop_indices. Crops will be
+    """Crops images at the locations specified by @crop_indices. Crops will be
     taken across all channels.
 
     Args:
@@ -195,7 +185,6 @@ def crop_image_from_indices(images, crop_indices, crop_height, crop_width):
     Returns:
         crops (torch.Tesnor): cropped images of shape [..., C, @crop_height, @crop_width]
     """
-
     # make sure length of input shapes is consistent
     assert crop_indices.shape[-1] == 2
     ndim_im_shape = len(images.shape)
@@ -279,8 +268,7 @@ def crop_image_from_indices(images, crop_indices, crop_height, crop_width):
 def sample_random_image_crops(
     images, crop_height, crop_width, num_crops, pos_enc=False
 ):
-    """
-    For each image, randomly sample @num_crops crops of size (@crop_height, @crop_width), from
+    """For each image, randomly sample @num_crops crops of size (@crop_height, @crop_width), from
     @images.
 
     Args:
@@ -365,8 +353,7 @@ class BaseEncoder(nn.Module):
 
 
 class IdentityEncoder(BaseEncoder):
-    """
-    Identity encoder does not change the input condition.
+    """Identity encoder does not change the input condition.
 
     Input:
         - condition: (b, *cond_in_shape)
@@ -399,8 +386,7 @@ def replace_submodules(
     predicate: Callable[[nn.Module], bool],
     func: Callable[[nn.Module], nn.Module],
 ) -> nn.Module:
-    """
-    predicate: Return true if the module is to be replaced.
+    """predicate: Return true if the module is to be replaced.
     func: Return new module to use.
     """
     if predicate(root_module):
@@ -435,8 +421,7 @@ def replace_submodules(
 
 
 def get_resnet(name, weights=None, **kwargs):
-    """
-    name: resnet18, resnet34, resnet50
+    """name: resnet18, resnet34, resnet50
     weights: "IMAGENET1K_V1", "r3m"
     """
     func = getattr(torchvision.models, name)
@@ -446,8 +431,7 @@ def get_resnet(name, weights=None, **kwargs):
 
 
 class MultiImageObsEncoder(BaseEncoder):
-    """
-    Input:
+    """Input:
         - condition: {"cond1": (b, *cond1_shape), "cond2": (b, *cond2_shape), ...} or (b, *cond_in_shape)
         - mask :     (b, *mask_shape) or None, None means no mask
 
@@ -463,8 +447,8 @@ class MultiImageObsEncoder(BaseEncoder):
         shape_meta: dict,
         rgb_model_name: str,
         emb_dim: int = 256,
-        resize_shape: Union[Tuple[int, int], Dict[str, tuple], None] = None,
-        crop_shape: Union[Tuple[int, int], Dict[str, tuple], None] = None,
+        resize_shape: tuple[int, int] | dict[str, tuple] | None = None,
+        crop_shape: tuple[int, int] | dict[str, tuple] | None = None,
         random_crop: bool = True,
         # replace BatchNorm with GroupNorm
         use_group_norm: bool = False,

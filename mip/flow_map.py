@@ -18,9 +18,11 @@ class FlowMap(nn.Module):
     def __init__(
         self,
         net: nn.Module,
+        reference_net: nn.Module | None = None,
     ):
         super().__init__()
         self.net = net
+        self.reference_net = reference_net
 
     def forward(
         self,
@@ -86,4 +88,9 @@ class FlowMap(nn.Module):
     def get_velocity(self, t, xs, label):
         """Get the velocity field of the flow."""
         bt, _ = self.net(xs, t, t, label)
+        return bt
+
+    def get_reference_velocity(self, t, xs, label):
+        """Get the velocity field of the reference net."""
+        bt, _ = self.reference_net(xs, t, t, label)
         return bt

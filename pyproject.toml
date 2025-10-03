@@ -30,6 +30,9 @@ dependencies = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4",
     "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git@v1.5.1",
     "h5py",
+    "zarr",
+    "numcodecs",
+    "huggingface-hub",
 ]
 
 [project.optional-dependencies]

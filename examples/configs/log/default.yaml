@@ -1,0 +1,9 @@
+# @package log
+defaults:
+  - _self_
+
+log_dir: "logs"
+wandb_mode: "disabled"
+project: "mip"
+group: "default"
+exp_name: "default"

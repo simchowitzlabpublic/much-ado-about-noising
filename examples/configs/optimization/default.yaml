@@ -1,0 +1,12 @@
+# @package optimization
+defaults:
+  - _self_
+
+loss_type: "flow"
+loss_scale: 100.0
+norm_type: "l2"
+lr: 1e-4
+weight_decay: 1e-5
+num_steps: 1
+sample_mode: "zero"
+ema_rate: 0.995

@@ -1,0 +1,19 @@
+# @package task
+defaults:
+  - _self_
+
+env_name: "lift"
+obs_type: "state"
+env_type: "ph"
+abs_action: true
+dataset_path: "data"
+max_episode_steps: 400
+obs_keys:
+  - "object"
+  - "robot0_eef_pos"
+  - "robot0_eef_quat"
+  - "robot0_gripper_qpos"
+obs_dim: 19
+act_dim: 10
+obs_steps: 2
+act_steps: 8

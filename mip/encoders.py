@@ -381,6 +381,112 @@ class IdentityEncoder(BaseEncoder):
         return condition * mask
 
 
+class Mlp(nn.Module):
+    """**Multilayer perceptron.** A simple pytorch MLP module.
+
+    Args:
+        in_dim: int,
+            The dimension of the input tensor.
+        hidden_dims: List[int],
+            A list of integers, each element is the dimension of the hidden layer.
+        out_dim: int,
+            The dimension of the output tensor.
+        activation: nn.Module,
+            The activation function used in the hidden layers.
+        out_activation: nn.Module,
+            The activation function used in the output layer.
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        hidden_dims: List[int],
+        out_dim: int,
+        activation: nn.Module = nn.ReLU(),
+        out_activation: nn.Module = nn.Identity(),
+    ):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            *[
+                nn.Sequential(
+                    nn.Linear(in_dim if i == 0 else hidden_dims[i - 1], hidden_dims[i]),
+                    activation,
+                )
+                for i in range(len(hidden_dims))
+            ],
+            nn.Linear(hidden_dims[-1], out_dim),
+            out_activation,
+        )
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
+    def forward(self, x):
+        return self.mlp(x)
+
+
+class MLPEncoder(BaseEncoder):
+    """A simple MLP encoder
+
+    Use a simple MLP to project the input condition to the desired dimension.
+
+    Args:
+        in_dim: int,
+            The input dimension of the condition
+        out_dim: int,
+            The output dimension of the condition
+        hidden_dims: List[int],
+            The hidden dimensions of the MLP
+        act: nn.Module,
+            The activation function of the MLP
+        dropout: float,
+            The label dropout rate
+
+    Examples:
+        >>> encoder = MLPEncoder(in_dim=5, out_dim=10)
+        >>> condition = torch.randn(2, 5)
+        >>> encoder(condition).shape
+        torch.Size([2, 10])
+        >>> condition = torch.randn(2, 20, 5)
+        >>> encoder(condition).shape
+        torch.Size([2, 20, 10])
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        hidden_dims: List[int],
+        act=nn.LeakyReLU(),
+        dropout: float = 0.25,
+    ):
+        super().__init__(dropout)
+        hidden_dims = (
+            [
+                hidden_dims,
+            ]
+            if isinstance(hidden_dims, int)
+            else hidden_dims
+        )
+        self.mlp = Mlp(in_dim, hidden_dims, out_dim, act)
+
+    def forward(self, condition: torch.Tensor, mask: torch.Tensor = None):
+        mask = at_least_ndim(
+            get_mask(
+                mask,
+                (condition.shape[0],),
+                self.dropout,
+                self.training,
+                condition.device,
+            ),
+            condition.dim(),
+        )
+        return self.mlp(condition) * mask
+
+
 def replace_submodules(
     root_module: nn.Module,
     predicate: Callable[[nn.Module], bool],

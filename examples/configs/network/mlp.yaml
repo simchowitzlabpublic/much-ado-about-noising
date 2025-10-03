@@ -1,0 +1,9 @@
+# @package network
+defaults:
+  - _self_
+
+network_type: "mlp"
+emb_dim: 512
+num_layers: 6
+dropout: 0.1
+expansion_factor: 4

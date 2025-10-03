@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mip"
+version = "0.1.0"
+description = "MIP: Minimum Iterative Policy"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "tyro",
+    "seaborn",
+    "tqdm",
+    "wandb",
+    "imageio-ffmpeg",
+    "moviepy",
+    "mediapy",
+    "hydra-core",
+    "loguru",
+    "ipdb",
+    "opencv-python-headless",
+    "imageio",
+    "gymnasium",
+    "torch",
+    "torchvision",
+    "numba",
+    "scikit-image",
+    "pymunk<7.0.0",
+    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4",
+    "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git@v1.5.1",
+    "h5py",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest>=8.0.0",
+]
+
+[tool.ruff]
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.11+
+target-version = "py311"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+# Plus Google style conventions
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "D",    # pydocstyle (Google style docstrings)
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+]
+
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+    "D107",   # Missing docstring in `__init__`
+]
+
+[tool.ruff.format]
+# Use Google style formatting
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.pydocstyle]
+# Use Google-style docstrings
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["mip"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["mip"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13.2",
+    "pytest>=8.0.0",
+]

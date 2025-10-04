@@ -49,6 +49,7 @@ class NetworkConfig:
     dropout: float = 0.1
     encoder_dropout: float = 0.0
     expansion_factor: int = 4
+    timestep_emb_dim: int = 128
 
 
 @dataclass

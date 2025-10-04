@@ -14,15 +14,27 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
         "mlp": MLP,
         "vanilla_mlp": VanillaMLP,
     }[network_config.network_type]
-    return network_class(
-        act_dim=task_config.act_dim,
-        Ta=task_config.horizon,
-        obs_dim=task_config.obs_dim,
-        To=task_config.obs_steps,
-        emb_dim=network_config.emb_dim,
-        n_layers=network_config.num_layers,
-        dropout=network_config.dropout,
-    )
+    if network_config.network_type == "mlp":
+        return network_class(
+            act_dim=task_config.act_dim,
+            Ta=task_config.horizon,
+            obs_dim=task_config.obs_dim,
+            To=task_config.obs_steps,
+            emb_dim=network_config.emb_dim,
+            n_layers=network_config.num_layers,
+            dropout=network_config.dropout,
+            timestep_emb_dim=network_config.timestep_emb_dim,
+        )
+    else:  # vanilla_mlp
+        return network_class(
+            act_dim=task_config.act_dim,
+            Ta=task_config.horizon,
+            obs_dim=task_config.obs_dim,
+            To=task_config.obs_steps,
+            emb_dim=network_config.emb_dim,
+            n_layers=network_config.num_layers,
+            dropout=network_config.dropout,
+        )
 
 
 def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):

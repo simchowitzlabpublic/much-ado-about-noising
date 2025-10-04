@@ -100,4 +100,5 @@ packages = ["mip"]
 dev = [
     "ruff>=0.13.2",
     "pytest>=8.0.0",
+    "pre-commit>=3.0.0",
 ]

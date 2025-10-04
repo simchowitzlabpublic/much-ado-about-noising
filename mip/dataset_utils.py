@@ -485,13 +485,27 @@ class ReplayBuffer:
     # =========== our API ==============
     @property
     def n_steps(self):
-        if len(self.episode_ends) == 0:
+        # Handle zarr arrays which don't have len()
+        episode_ends = self.episode_ends
+        if hasattr(episode_ends, 'shape'):
+            # Zarr array or numpy array
+            if episode_ends.shape[0] == 0:
+                return 0
+        elif len(episode_ends) == 0:
+            # List or regular array
             return 0
-        return self.episode_ends[-1]
+        return int(episode_ends[-1])
 
     @property
     def n_episodes(self):
-        return len(self.episode_ends)
+        # Handle zarr arrays which don't have len()
+        episode_ends = self.episode_ends
+        if hasattr(episode_ends, 'shape'):
+            # Zarr array or numpy array
+            return episode_ends.shape[0]
+        else:
+            # List or regular array
+            return len(episode_ends)
 
     @property
     def chunk_size(self):

@@ -6,9 +6,19 @@ env_name: "lift"
 obs_type: "image"
 env_type: "ph"
 abs_action: true
-dataset_path: "~/.cache/huggingface/hub/datasets--amandlek--robomimic/snapshots/74fa018461f479cd9fd15b924a16103012096203/v1.5/lift/ph/image_v15.hdf5"
+# Using the full image dataset with both cameras (10 demos)
+dataset_path: "~/.cache/huggingface/hub/datasets--amandlek--robomimic/snapshots/74fa018461f479cd9fd15b924a16103012096203/v1.5/lift/ph/image_v15_full.hdf5"
 max_episode_steps: 400
 render_obs_key: "agentview_image"
+# Add missing required keys
+obs_steps: 2
+act_steps: 8
+horizon: 10
+num_envs: 1
+save_video: false
+val_dataset_percentage: 0.0
+act_dim: 10
+obs_dim: 128  # Placeholder, will be overridden for image observations
 shape_meta:
   action:
     shape:
@@ -28,16 +38,16 @@ shape_meta:
       shape:
         - 4
       type: low_dim
+    robot0_gripper_qpos:
+      shape:
+        - 2
+      type: low_dim
     robot0_eye_in_hand_image:
       shape:
         - 3
         - 84
         - 84
       type: rgb
-    robot0_gripper_qpos:
-      shape:
-        - 2
-      type: low_dim
 # obs_encoder
 rgb_model: resnet18
 resize_shape: null

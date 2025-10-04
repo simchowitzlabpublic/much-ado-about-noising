@@ -56,16 +56,38 @@ class RobomimicImageWrapper(gym.Env):
         self.render_cache = raw_obs[self.render_obs_key]
 
         obs = dict()
-        # print(raw_obs.keys())
+        # Debug: print available keys
+        # print(f"Available keys in raw_obs: {raw_obs.keys()}")
+        # print(f"Expected keys in observation_space: {self.observation_space.keys()}")
+
         for key in self.observation_space.keys():
-            obs[key] = raw_obs[key]
+            # Map dataset keys to environment keys
+            # Dataset has keys like 'robot0_eye_in_hand_image' but env provides 'robot0_eye_in_hand'
+            env_key = key
+            if key.endswith('_image') and key != 'agentview_image':
+                # Try removing '_image' suffix for camera observations
+                base_key = key.replace('_image', '')
+                if base_key in raw_obs:
+                    env_key = base_key
+
+            # Check if this key exists in raw_obs
+            if env_key not in raw_obs:
+                print(f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}")
+                # Skip this key if not found
+                continue
+            else:
+                obs[key] = raw_obs[env_key]
         return obs
 
     def seed(self, seed=None):
         np.random.seed(seed=seed)
         self._seed = seed
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        # Handle seed parameter from gymnasium API
+        if seed is not None:
+            self.seed(seed)
+
         if self.init_state is not None:
             if not self.has_reset_before:
                 # the env must be fully reset at least once to ensure correct rendering

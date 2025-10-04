@@ -16,6 +16,8 @@ dependencies = [
     "imageio-ffmpeg",
     "moviepy",
     "mediapy",
+    "av",
+    "dill",
     "hydra-core",
     "loguru",
     "ipdb",

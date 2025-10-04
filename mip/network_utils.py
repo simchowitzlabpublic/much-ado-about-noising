@@ -36,13 +36,21 @@ def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):
             dropout=network_config.encoder_dropout,
         )
     elif network_config.encoder_type == "image":
-        return MultiImageObsEncoder(
+        # Pass image-specific configs from task_config if available
+        kwargs = dict(
             shape_meta=task_config.shape_meta,
             rgb_model_name=network_config.rgb_model_name,
             emb_dim=network_config.emb_dim,
             use_seq=network_config.use_seq,
             keep_horizon_dims=network_config.keep_horizon_dims,
-            dropout=network_config.encoder_dropout,
         )
+
+        # Add optional image processing configs from task_config
+        kwargs['resize_shape'] = task_config.resize_shape
+        kwargs['crop_shape'] = task_config.crop_shape
+        kwargs['random_crop'] = task_config.random_crop
+        kwargs['use_group_norm'] = task_config.use_group_norm
+
+        return MultiImageObsEncoder(**kwargs)
     else:
         raise ValueError(f"Invalid encoder type: {network_config.encoder_type}")

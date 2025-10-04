@@ -72,10 +72,10 @@ def train(config: Config, envs, dataset, agent, logger):
 
         # preprocess data
         if config.task.obs_type == "image":
-            obs = batch["obs"]
+            obs_batch = batch["obs"]
             obs = {}
-            for k in obs.keys():
-                obs[k] = obs[k][:, : config.task.obs_steps, :].to(
+            for k in obs_batch.keys():
+                obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
                     config.optimization.device
                 )
         elif config.task.obs_type == "state":
@@ -185,12 +185,13 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                     obs, device=config.optimization.device, dtype=torch.float32
                 )  # (num_envs, obs_steps, obs_dim)
             else:  # image-based observation
+                obs_raw = obs
                 obs = {}
-                for k in obs.keys():
-                    obs[k] = obs[k].astype(np.float32)  # (num_envs, obs_steps, obs_dim)
+                for k in obs_raw.keys():
+                    obs[k] = obs_raw[k].astype(np.float32)  # (num_envs, obs_steps, obs_dim)
                     obs[k] = dataset.normalizer["obs"][k].normalize(obs[k])
                     obs[k] = torch.tensor(
-                        obs, device=config.optimization.device, dtype=torch.float32
+                        obs[k], device=config.optimization.device, dtype=torch.float32
                     )  # (num_envs, obs_steps, obs_dim)
 
             act_0 = torch.randn(
@@ -280,11 +281,26 @@ def main(config):
     obs, info = envs.reset()
     if config.task.obs_type == "state":
         config.task.obs_dim = obs.shape[-1]
+    else:
+        # For image observations, set obs_dim to embedding dimension
+        # This is used by the network but not actually used when encoder_type is "image"
+        config.task.obs_dim = config.network.emb_dim
     loguru.logger.info("Finished setting up env")
 
     # dataset setup
     dataset = make_dataset(config.task)
     loguru.logger.info("Finished setting up dataset")
+
+    # Auto-configure encoder type based on observation type
+    if config.task.obs_type == "image":
+        config.network.encoder_type = "image"
+        # Use rgb_model from task config if available
+        if hasattr(config.task, 'rgb_model'):
+            config.network.rgb_model_name = config.task.rgb_model
+    elif config.task.obs_type == "state":
+        # Use identity or mlp encoder for state observations
+        if config.network.encoder_type == "image":
+            config.network.encoder_type = "identity"
 
     agent = TrainingAgent(config)
     if config.optimization.model_path and config.optimization.model_path != "None":

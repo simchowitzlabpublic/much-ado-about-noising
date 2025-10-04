@@ -6,7 +6,7 @@ env_name: "lift"
 obs_type: "state"
 env_type: "ph"
 abs_action: true
-dataset_path: "data"
+dataset_path: "~/.cache/huggingface/hub/datasets--amandlek--robomimic/snapshots/74fa018461f479cd9fd15b924a16103012096203/v1.5/lift/ph/low_dim_v15.hdf5"
 max_episode_steps: 400
 obs_keys:
   - "object"
@@ -17,3 +17,7 @@ obs_dim: 19
 act_dim: 10
 obs_steps: 2
 act_steps: 8
+horizon: 10
+num_envs: 1
+save_video: false
+val_dataset_percentage: 0.0

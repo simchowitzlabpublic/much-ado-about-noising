@@ -8,7 +8,10 @@ import os
 import tempfile
 from unittest.mock import Mock, patch
 
+import gymnasium as gym
+
 from mip.config import Config, LogConfig, NetworkConfig, OptimizationConfig, TaskConfig
+from mip.env_utils import VideoRecorder, VideoRecordingWrapper
 from mip.logger import (
     Logger,
     compute_average_metrics,
@@ -271,6 +274,139 @@ class TestLogger:
 
             # Check that wandb.finish was called
             mock_wandb.finish.assert_called_once()
+
+    @patch("mip.logger.wandb")
+    def test_logger_creates_video_directory(self, mock_wandb):
+        """Test that Logger creates video directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_config = LogConfig(
+                log_dir=tmpdir,
+                wandb_mode="disabled",
+                project="test_project",
+                group="test_group",
+                exp_name="test_exp",
+            )
+            config = Config(
+                optimization=OptimizationConfig(),
+                network=NetworkConfig(),
+                task=TaskConfig(),
+                log=log_config,
+            )
+
+            _ = Logger(config)
+
+            # Check that video directory was created
+            assert os.path.exists(os.path.join(tmpdir, "videos"))
+
+    @patch("mip.logger.wandb")
+    def test_video_init_with_video_recording_wrapper(self, mock_wandb):
+        """Test video_init with VideoRecordingWrapper."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_config = LogConfig(
+                log_dir=tmpdir,
+                wandb_mode="disabled",
+                project="test_project",
+                group="test_group",
+                exp_name="test_exp",
+            )
+            config = Config(
+                optimization=OptimizationConfig(),
+                network=NetworkConfig(),
+                task=TaskConfig(),
+                log=log_config,
+            )
+
+            logger = Logger(config)
+
+            # Create a proper mock gymnasium environment
+            mock_base_env = Mock(spec=gym.Env)
+            mock_recorder = Mock(spec=VideoRecorder)
+            mock_recorder.stop = Mock()
+
+            # Manually create a mock VideoRecordingWrapper rather than instantiating it
+            video_env = Mock(spec=VideoRecordingWrapper)
+            video_env.video_recoder = mock_recorder
+            video_env.file_path = None
+
+            # Create outer env wrapper
+            mock_env = Mock()
+            mock_env.env = video_env
+
+            # Test enabling video recording
+            logger.video_init(mock_env, enable=True, video_id="test_video")
+
+            # Check that file_path was set
+            assert video_env.file_path is not None
+            assert "test_video" in video_env.file_path
+            assert video_env.file_path.endswith(".mp4")
+
+            # Check that stop was called
+            mock_recorder.stop.assert_called_once()
+
+    @patch("mip.logger.wandb")
+    def test_video_init_disable_recording(self, mock_wandb):
+        """Test video_init with recording disabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_config = LogConfig(
+                log_dir=tmpdir,
+                wandb_mode="disabled",
+                project="test_project",
+                group="test_group",
+                exp_name="test_exp",
+            )
+            config = Config(
+                optimization=OptimizationConfig(),
+                network=NetworkConfig(),
+                task=TaskConfig(),
+                log=log_config,
+            )
+
+            logger = Logger(config)
+
+            # Create a mock environment with VideoRecordingWrapper
+            mock_recorder = Mock(spec=VideoRecorder)
+
+            # Manually create a mock VideoRecordingWrapper
+            video_env = Mock(spec=VideoRecordingWrapper)
+            video_env.video_recoder = mock_recorder
+            video_env.file_path = "/some/path.mp4"
+
+            # Create outer env wrapper
+            mock_env = Mock()
+            mock_env.env = video_env
+
+            # Test disabling video recording
+            logger.video_init(mock_env, enable=False)
+
+            # Check that file_path was set to None
+            assert video_env.file_path is None
+
+    @patch("mip.logger.wandb")
+    def test_video_init_without_wrapper(self, mock_wandb):
+        """Test video_init with environment without VideoRecordingWrapper."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_config = LogConfig(
+                log_dir=tmpdir,
+                wandb_mode="disabled",
+                project="test_project",
+                group="test_group",
+                exp_name="test_exp",
+            )
+            config = Config(
+                optimization=OptimizationConfig(),
+                network=NetworkConfig(),
+                task=TaskConfig(),
+                log=log_config,
+            )
+
+            logger = Logger(config)
+
+            # Create a mock environment without VideoRecordingWrapper
+            mock_env = Mock()
+            mock_env.env = Mock()
+
+            # This should not raise an error, just return early
+            logger.video_init(mock_env, enable=True, video_id="test")
 
 
 if __name__ == "__main__":

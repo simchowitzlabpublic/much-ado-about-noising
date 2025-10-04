@@ -22,28 +22,27 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
         emb_dim=network_config.emb_dim,
         n_layers=network_config.num_layers,
         dropout=network_config.dropout,
-        expansion_factor=network_config.expansion_factor,
     )
 
 
 def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):
-    if task_config.encoder_type == "identity":
-        return IdentityEncoder(dropout=network_config.dropout)
-    elif task_config.encoder_type == "mlp":
+    if network_config.encoder_type == "identity":
+        return IdentityEncoder(dropout=network_config.encoder_dropout)
+    elif network_config.encoder_type == "mlp":
         return MLPEncoder(
             in_dim=task_config.obs_dim,
             out_dim=network_config.emb_dim,
             hidden_dims=[network_config.emb_dim] * network_config.num_layers,
-            dropout=network_config.dropout,
+            dropout=network_config.encoder_dropout,
         )
-    elif task_config.encoder_type == "image":
+    elif network_config.encoder_type == "image":
         return MultiImageObsEncoder(
             shape_meta=task_config.shape_meta,
             rgb_model_name=network_config.rgb_model_name,
             emb_dim=network_config.emb_dim,
             use_seq=network_config.use_seq,
             keep_horizon_dims=network_config.keep_horizon_dims,
-            dropout=network_config.dropout,
+            dropout=network_config.encoder_dropout,
         )
     else:
-        raise ValueError(f"Invalid encoder type: {task_config.encoder_type}")
+        raise ValueError(f"Invalid encoder type: {network_config.encoder_type}")

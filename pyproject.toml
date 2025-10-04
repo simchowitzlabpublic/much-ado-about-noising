@@ -33,6 +33,7 @@ dependencies = [
     "zarr",
     "numcodecs",
     "huggingface-hub",
+    "imagecodecs",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,8 @@
+defaults:
+  - log: default
+  - optimization: default
+  - network: mlp
+  - task: lift
+  - _self_
+
+mode: "train"

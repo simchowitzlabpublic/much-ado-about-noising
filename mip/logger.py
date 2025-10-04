@@ -15,6 +15,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from mip.config import Config
+from mip.env_utils import VideoRecordingWrapper
 
 
 def make_dir(dir_path):
@@ -33,6 +34,7 @@ class Logger:
         self.config = config.log
         self._log_dir = Path(make_dir(config.log.log_dir))
         self._model_dir = Path(make_dir(str(self._log_dir / "models")))
+        self._video_dir = Path(make_dir(str(self._log_dir / "videos")))
 
         # Convert full config dataclass to OmegaConf config, then to container
         # This uploads all config (optimization, network, task, log) to wandb
@@ -48,6 +50,31 @@ class Logger:
             dir=self._log_dir,
         )
         self._wandb = wandb
+
+    def video_init(self, env, enable=False, video_id=""):
+        """Initialize video recording for an environment.
+
+        Args:
+            env: The environment (potentially wrapped with VideoRecordingWrapper)
+            enable: Whether to enable video recording
+            video_id: Identifier for the video file
+        """
+        # Check if env has VideoRecordingWrapper
+        if isinstance(env.env, VideoRecordingWrapper):
+            video_env = env.env
+        else:
+            video_env = env
+
+        # Only proceed if the environment has video recording capability
+        if not isinstance(video_env, VideoRecordingWrapper):
+            return
+
+        if enable:
+            video_env.video_recoder.stop()
+            video_filename = self._video_dir / f"{video_id}_{uuid.uuid4()}.mp4"
+            video_env.file_path = str(video_filename)
+        else:
+            video_env.file_path = None
 
     def log(self, d, category):
         assert category in ["train", "eval"]

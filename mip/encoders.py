@@ -8,6 +8,7 @@ Date: 2025-10-03
 
 import copy
 from collections.abc import Callable
+from typing import List
 
 import torch
 import torch.nn as nn

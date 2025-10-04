@@ -32,6 +32,38 @@ from mip.datasets.imagecodecs import register_codecs
 register_codecs()
 
 
+def make_dataset(task_config, mode="train"):
+    dataset_path = os.path.expanduser(task_config.dataset_path)
+    if task_config.env_name in ["can", "lift", "square", "tool_hang", "transport"]:
+        if task_config.obs_type == "state":
+            return RobomimicDataset(
+                dataset_path,
+                horizon=task_config.horizon,
+                obs_keys=task_config.obs_keys,
+                pad_before=task_config.obs_steps - 1,
+                pad_after=task_config.act_steps - 1,
+                abs_action=task_config.abs_action,
+                mode=mode,
+                val_dataset_percentage=task_config.val_dataset_percentage,
+            )
+        elif task_config.obs_type == "image":
+            return RobomimicImageDataset(
+                dataset_path,
+                horizon=task_config.horizon,
+                shape_meta=task_config.shape_meta,
+                n_obs_steps=task_config.obs_steps,
+                pad_before=task_config.obs_steps - 1,
+                pad_after=task_config.act_steps - 1,
+                abs_action=task_config.abs_action,
+                val_dataset_percentage=task_config.val_dataset_percentage,
+                mode=mode,
+            )
+        else:
+            raise ValueError(f"Invalid observation type: {task_config.obs_type}")
+    else:
+        raise ValueError(f"Environment {task_config.env_name} not supported")
+
+
 def download_robomimic_dataset(
     task: str = "lift",
     source: str = "ph",
@@ -247,7 +279,7 @@ class RobomimicDataset(BaseDataset):
         rotation_rep="rotation_6d",
         val_dataset_percentage=0.0,
         mode="train",
-        use_key_state_for_val: bool = True,
+        use_key_state_for_val: bool = False,
     ):
         super().__init__()
         self.rotation_transformer = RotationTransformer(

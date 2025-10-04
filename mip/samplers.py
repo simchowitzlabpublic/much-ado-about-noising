@@ -13,6 +13,15 @@ from mip.flow_map import FlowMap
 from mip.torch_utils import at_least_ndim
 
 
+def get_default_step_list(loss_type: str):
+    if loss_type in ["flow", "ctm", "lmd"]:
+        return 3 ** np.arange(2, -1, -1)
+    elif loss_type in ["regression", "mip", "tsd"]:
+        return [1]
+    else:
+        raise NotImplementedError(f"Loss type {loss_type} not implemented.")
+
+
 def get_sampler(loss_type: str):
     if loss_type == "flow":
         return ode_sampler

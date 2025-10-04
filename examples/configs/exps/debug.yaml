@@ -1,0 +1,29 @@
+# @package _global_
+# Fast experiment configuration
+defaults:
+  - /optimization: default
+  - /network: mlp
+  - /task: lift
+  - /log: default
+  - _self_
+
+mode: "train"
+
+optimization:
+  gradient_steps: 2
+  batch_size: 2
+
+log:
+  wandb_mode: "disabled"
+  eval_freq: 1
+  log_freq: 1
+  save_freq: 1
+  eval_episodes: 1
+
+task:
+  num_envs: 1
+
+network:
+  num_layers: 1
+  expansion_factor: 1
+  emb_dim: 128

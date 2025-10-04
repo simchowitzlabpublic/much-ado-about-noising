@@ -5,7 +5,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from mip.config import OptimizationConfig
+from mip.config import Config
 from mip.flow_map import FlowMap
 from mip.interpolant import Interpolant
 from mip.losses import get_loss_fn
@@ -18,29 +18,33 @@ class TrainingAgent:
 
     def __init__(
         self,
-        config: OptimizationConfig,
+        config: Config,
     ):
         """Initialize the training agent.
 
         Args:
             flow_map: The flow map model
             encoder: The observation encoder
-            config: Optimization configuration
+            config: Full configuration object
         """
         self.config = config
-        self.loss_fn = get_loss_fn(config.loss_type)
-        self.sampler = get_sampler(config.loss_type)
-        self.interpolant = Interpolant(config.interp_type)
-        net = get_network(config.network_config, config.task_config)
-        self.flow_map = FlowMap(net)
-        self.encoder = get_encoder(config.network_config, config.task_config)
+        self.loss_fn = get_loss_fn(config.optimization.loss_type)
+        self.sampler = get_sampler(config.optimization.loss_type)
+        self.interpolant = Interpolant(config.optimization.interp_type)
+        net = get_network(config.network, config.task)
+        self.flow_map = FlowMap(net).to(config.optimization.device)
+        self.encoder = get_encoder(config.network, config.task).to(
+            config.optimization.device
+        )
         self.encoder_ema = deepcopy(self.encoder).requires_grad_(False)
         self.flow_map_ema = deepcopy(self.flow_map).requires_grad_(False)
 
         # optimizer
         params = list(self.encoder.parameters()) + list(self.flow_map.parameters())
         self.optimizer = torch.optim.AdamW(
-            params, lr=config.lr, weight_decay=config.weight_decay
+            params,
+            lr=config.optimization.lr,
+            weight_decay=config.optimization.weight_decay,
         )
 
     def update(self, act: torch.Tensor, obs: torch.Tensor, delta_t: torch.Tensor):
@@ -150,3 +154,15 @@ class TrainingAgent:
         self.encoder.load_state_dict(state_dict["encoder"])
         self.encoder_ema.load_state_dict(state_dict["encoder_ema"])
         self.flow_map_ema.load_state_dict(state_dict["flow_map_ema"])
+
+    def eval(self):
+        self.flow_map.eval()
+        self.encoder.eval()
+        self.flow_map_ema.eval()
+        self.encoder_ema.eval()
+
+    def train(self):
+        self.flow_map.train()
+        self.encoder.train()
+        self.flow_map_ema.train()
+        self.encoder_ema.train()

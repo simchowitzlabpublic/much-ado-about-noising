@@ -2,6 +2,7 @@
 defaults:
   - _self_
 
+seed: 0
 loss_type: "flow"
 loss_scale: 100.0
 norm_type: "l2"
@@ -9,4 +10,16 @@ lr: 1e-4
 weight_decay: 1e-5
 num_steps: 1
 sample_mode: "zero"
+t_two_step: 0.9
+discrete_dt: 0.01
+grad_clip_norm: 10.0
 ema_rate: 0.995
+batch_size: 1024
+gradient_steps: 300000
+warmup_ratio: 0.0
+rampup_ratio: 0.5
+min_value: 0.0
+max_value: 1.0
+model_path: null
+interp_type: "linear"
+device: "cuda"

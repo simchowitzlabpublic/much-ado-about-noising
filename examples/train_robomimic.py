@@ -263,7 +263,7 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         for i in range(7):
             kit_metrics[f"p{i + 1}_NFE{num_steps}"] = mean_kit_success[i]
         metrics.update(kit_metrics)
-        print(f"Kit metrics: {kit_metrics}")
+        loguru.logger.info(f"Kit metrics: {kit_metrics}")
 
     return metrics
 
@@ -304,7 +304,7 @@ def main(config):
 
     agent = TrainingAgent(config)
     if config.optimization.model_path and config.optimization.model_path != "None":
-        print(f"Loading model from {config.optimization.model_path}")
+        loguru.logger.info(f"Loading model from {config.optimization.model_path}")
         agent.load(config.optimization.model_path)
 
     if config.mode == "train":
@@ -323,7 +323,7 @@ def main(config):
         # print result in easy to read format
         for key, val in metrics.items():
             if "mean_success" in key:
-                print(f"{key} - {val}")
+                loguru.logger.info(f"{key} - {val}")
     else:
         raise ValueError("Illegal mode")
 

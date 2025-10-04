@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import zarr
 from huggingface_hub import hf_hub_download
+from loguru import logger
 from tqdm import tqdm
 
 from mip.dataset_utils import (
@@ -36,13 +37,13 @@ def make_dataset(task_config, mode="train"):
     # Check if we should download from HuggingFace
     if hasattr(task_config, 'dataset_repo') and hasattr(task_config, 'dataset_filename'):
         # Auto-download from HuggingFace
-        print(f"Downloading dataset from {task_config.dataset_repo}/{task_config.dataset_filename}")
+        logger.info(f"Downloading dataset from {task_config.dataset_repo}/{task_config.dataset_filename}")
         dataset_path = hf_hub_download(
             repo_id=task_config.dataset_repo,
             filename=task_config.dataset_filename,
             repo_type="dataset"
         )
-        print(f"Downloaded dataset to: {dataset_path}")
+        logger.info(f"Downloaded dataset to: {dataset_path}")
     elif hasattr(task_config, 'dataset_path'):
         # Use explicit path if provided
         dataset_path = os.path.expanduser(task_config.dataset_path)
@@ -111,14 +112,14 @@ def download_robomimic_dataset(
             f"Invalid dataset_type: {dataset_type}. Must be 'low_dim' or 'demo'"
         )
 
-    print(f"Downloading {filename} from Hugging Face...")
+    logger.info(f"Downloading {filename} from Hugging Face...")
     file_path = hf_hub_download(
         repo_id=repo_id,
         filename=filename,
         repo_type="dataset",
         cache_dir=cache_dir,
     )
-    print(f"Downloaded to: {file_path}")
+    logger.info(f"Downloaded to: {file_path}")
     return file_path
 
 
@@ -216,7 +217,7 @@ def process_demo_to_image_dataset(
     # So we need to copy the demo file to a writable location first
     temp_dir = tempfile.mkdtemp()
     temp_demo_path = os.path.join(temp_dir, "demo.hdf5")
-    print(f"Copying demo file to temporary location: {temp_demo_path}")
+    logger.info(f"Copying demo file to temporary location: {temp_demo_path}")
     shutil.copy2(demo_path, temp_demo_path)
 
     if output_path is None:
@@ -242,8 +243,8 @@ def process_demo_to_image_dataset(
     for camera_name in camera_names:
         cmd.extend(["--camera_names", camera_name])
 
-    print("Processing demo file to image dataset...")
-    print(f"Command: {' '.join(cmd)}")
+    logger.info("Processing demo file to image dataset...")
+    logger.info(f"Command: {' '.join(cmd)}")
 
     # Run processing command
     result = subprocess.run(
@@ -271,14 +272,14 @@ def process_demo_to_image_dataset(
 
     # Move/copy output to desired location if different from temp location
     if os.path.abspath(temp_output_path) != os.path.abspath(output_path):
-        print(f"Moving output from {temp_output_path} to {output_path}")
+        logger.info(f"Moving output from {temp_output_path} to {output_path}")
         shutil.move(temp_output_path, output_path)
 
     # Clean up temp demo file (but keep output file if it's in temp_dir)
     if os.path.exists(temp_demo_path):
         os.remove(temp_demo_path)
 
-    print(f"Processed image dataset saved to: {output_path}")
+    logger.info(f"Processed image dataset saved to: {output_path}")
     return output_path
 
 
@@ -380,7 +381,7 @@ class RobomimicDataset(BaseDataset):
                             env.obj_site_id[stand_site_name]
                         ]
                         distance = np.linalg.norm(frame_site_pos - stand_site_pos)
-                        print(distance)
+                        logger.debug(distance)
                     exit()
 
                 episode = _data_to_obs(

@@ -16,6 +16,7 @@ import numcodecs
 import numpy as np
 import torch
 import zarr
+from loguru import logger
 
 from mip.config import TaskConfig
 from mip.datasets import rotation_conversion as rc
@@ -260,7 +261,7 @@ class ReplayBuffer:
         Recommended
         """
         if backend == "numpy":
-            print("backend argument is deprecated!")
+            logger.warning("backend argument is deprecated!")
             store = None
         group = zarr.open(os.path.expanduser(zarr_path), "r")
         return cls.copy_from_store(
@@ -942,7 +943,7 @@ class CDFNormalizer1d:
     def unnormalize(self, x, eps=1e-4):
         x = (x + 1) / 2.0
         if (x < self.ymin - eps).any() or (x > self.ymax + eps).any():
-            print(
+            logger.warning(
                 f"""[ dataset/normalization ] Warning: out of range in unnormalize: """
                 f"""[{x.min()}, {x.max()}] | """
                 f"""x : [{self.xmin}, {self.xmax}] | """
@@ -1015,7 +1016,7 @@ class MinMaxNormalizer:
         self.range = self.max - self.min
         if np.any(self.range == 0):
             self.range = self.max - self.min
-            print(
+            logger.warning(
                 "Warning: Some features have the same min and max value. These will be set to 0."
             )
             self.range[self.range == 0] = 1

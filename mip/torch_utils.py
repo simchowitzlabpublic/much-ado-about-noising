@@ -7,6 +7,7 @@ import collections
 import random
 import numpy as np
 import torch
+from loguru import logger
 
 
 def at_least_ndim(x: np.ndarray | torch.Tensor | int | float, ndim: int, pad: int = 0):
@@ -1020,7 +1021,7 @@ def param_to_module(param):
 def report_parameters(model, topk=10):
     counts = {k: p.numel() for k, p in model.named_parameters() if p.requires_grad}
     n_parameters = sum(counts.values())
-    print(f"Total parameters: {_to_str(n_parameters)}")
+    logger.info(f"Total parameters: {_to_str(n_parameters)}")
 
     modules = dict(model.named_modules())
     sorted_keys = sorted(counts, key=lambda x: -counts[x])
@@ -1028,10 +1029,10 @@ def report_parameters(model, topk=10):
         key = sorted_keys[i]
         count = counts[key]
         module = param_to_module(key)
-        print(" " * 8, f"{key:10}: {_to_str(count)} | {modules[module]}")
+        logger.info(" " * 8, f"{key:10}: {_to_str(count)} | {modules[module]}")
 
     remaining_parameters = sum([counts[k] for k in sorted_keys[topk:]])
-    print(
+    logger.info(
         " " * 8,
         f"... and {len(counts) - topk} others accounting for {_to_str(remaining_parameters)} parameters",
     )

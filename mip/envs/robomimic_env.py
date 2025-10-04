@@ -6,6 +6,7 @@ import os
 import sys
 
 import gymnasium as gym
+from loguru import logger
 
 from mip.config import TaskConfig
 from mip.env_utils import MultiStepWrapper, VideoRecorder, VideoRecordingWrapper
@@ -143,7 +144,7 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
         )
         if seed is not None:
             env.seed(seed + idx)
-            print("Env seed: ", seed + idx)
+            logger.debug("Env seed: ", seed + idx)
         return env
 
     return thunk

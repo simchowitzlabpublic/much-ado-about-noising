@@ -1,5 +1,7 @@
+from loguru import logger
+
 def main():
-    print("Hello from mip!")
+    logger.info("Hello from mip!")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from loguru import logger
 from omegaconf import OmegaConf
 from robomimic.envs.env_robosuite import EnvRobosuite
 
@@ -66,12 +67,12 @@ class RobomimicImageWrapper(gym.Env):
                 if base_key in raw_obs:
                     render_key = base_key
                 else:
-                    print(f"ERROR: Neither '{render_key}' nor '{base_key}' found in raw_obs keys: {list(raw_obs.keys())}")
+                    logger.error(f"ERROR: Neither '{render_key}' nor '{base_key}' found in raw_obs keys: {list(raw_obs.keys())}")
                     # Use first image key as fallback
                     for key in raw_obs.keys():
                         if 'image' in key.lower() or key in ['agentview', 'robot0_eye_in_hand']:
                             render_key = key
-                            print(f"Using fallback render key: {render_key}")
+                            logger.warning(f"Using fallback render key: {render_key}")
                             break
         self.render_cache = raw_obs[render_key]
 
@@ -93,7 +94,7 @@ class RobomimicImageWrapper(gym.Env):
 
             # Check if this key exists in raw_obs
             if env_key not in raw_obs:
-                print(f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}")
+                logger.warning(f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}")
                 # Skip this key if not found
                 continue
             else:

@@ -146,7 +146,14 @@ class MultiStepWrapper(gym.Wrapper):
             if len(self.done) > 0 and self.done[-1]:
                 # termination
                 break
-            observation, reward, done, info = super().step(act)
+            result = super().step(act)
+
+            # Handle both old Gym (4 returns) and new Gymnasium (5 returns) APIs
+            if len(result) == 5:
+                observation, reward, terminated, truncated, info = result
+                done = terminated or truncated
+            else:
+                observation, reward, done, info = result
 
             self.obs.append(observation)
             self.reward.append(reward)
@@ -162,7 +169,10 @@ class MultiStepWrapper(gym.Wrapper):
         reward = aggregate(self.reward, self.reward_agg_method)
         done = aggregate(self.done, "max")
         info = dict_take_last_n(self.info, self.n_obs_steps)
-        return observation, reward, done, info
+        # Return in new Gymnasium 5-value format
+        terminated = done
+        truncated = False  # Truncation is already handled above
+        return observation, reward, terminated, truncated, info
 
     def _get_obs(self, n_steps=1):
         """Output (n_steps,) + obs_shape"""

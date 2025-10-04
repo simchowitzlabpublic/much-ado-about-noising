@@ -16,7 +16,7 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
     }[network_config.network_type]
     return network_class(
         act_dim=task_config.act_dim,
-        Ta=task_config.act_steps,
+        Ta=task_config.horizon,
         obs_dim=task_config.obs_dim,
         To=task_config.obs_steps,
         emb_dim=network_config.emb_dim,

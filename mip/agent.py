@@ -60,7 +60,7 @@ class TrainingAgent:
         """
         # update optimizer
         loss, info = self.loss_fn(
-            self.config,
+            self.config.optimization,
             self.flow_map,
             self.encoder,
             self.interpolant,
@@ -72,14 +72,14 @@ class TrainingAgent:
 
         params = list(self.encoder.parameters()) + list(self.flow_map.parameters())
         grad_norm = (
-            nn.utils.clip_grad_norm_(params, self.config.grad_clip_norm)
-            if self.config.grad_clip_norm
+            nn.utils.clip_grad_norm_(params, self.config.optimization.grad_clip_norm)
+            if self.config.optimization.grad_clip_norm
             else torch.zeros(1)
         )
         self.optimizer.step()
         self.optimizer.zero_grad()
 
-        if self.config.ema_rate < 1:
+        if self.config.optimization.ema_rate < 1:
             self.ema_update()
 
         return {"loss": loss.item(), "grad_norm": grad_norm.item(), **info}
@@ -92,8 +92,8 @@ class TrainingAgent:
         )
         with torch.no_grad():
             for p, p_ema in zip(params, ema_params, strict=False):
-                p_ema.data.mul_(self.config.ema_rate).add_(
-                    p.data, alpha=1.0 - self.config.ema_rate
+                p_ema.data.mul_(self.config.optimization.ema_rate).add_(
+                    p.data, alpha=1.0 - self.config.optimization.ema_rate
                 )
 
     def sample(
@@ -116,12 +116,12 @@ class TrainingAgent:
         """
         # manually set num_steps if needed
         if num_steps >= 1:
-            config = deepcopy(self.config)
-            config.num_steps = num_steps
+            config = deepcopy(self.config.optimization)
+            config.num_steps = int(num_steps)
         else:
-            config = self.config
+            config = self.config.optimization
         # choose model
-        if self.config.ema_rate < 1:
+        if self.config.optimization.ema_rate < 1:
             if use_ema:
                 flow_map = self.flow_map_ema
                 encoder = self.encoder_ema

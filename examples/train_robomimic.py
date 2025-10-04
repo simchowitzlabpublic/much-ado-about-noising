@@ -82,10 +82,14 @@ def train(config: Config, envs, dataset, agent, logger):
             obs = batch["obs"]["state"].to(config.optimization.device)
             obs = obs[:, : config.task.obs_steps, :]  # (B, obs_horizon, obs_dim)
         act = batch["action"].to(config.optimization.device)
+        act = act[:, : config.task.horizon, :]  # (B, horizon, act_dim)
 
         # update diffusion
         delta_t_scalar = warmup_scheduler(n_gradient_step)
-        delta_t = torch.tensor(delta_t_scalar, device=config.optimization.device)
+        batch_size = act.shape[0]
+        delta_t = torch.full(
+            (batch_size,), delta_t_scalar, device=config.optimization.device
+        )
         info = agent.update(act, obs, delta_t)
         lr_scheduler.step()
         info_list.append(info)
@@ -138,7 +142,7 @@ def train(config: Config, envs, dataset, agent, logger):
                 for key, value in avg_metrics.items():
                     loguru.logger.info(f"  {key}: {value:.4f}")
 
-            logger.log(metrics, category="inference")
+            logger.log(metrics, category="eval")
             agent.train()
 
 
@@ -207,7 +211,7 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
             )  # (num_envs, horizon, action_dim)
             act = dataset.normalizer["action"].unnormalize(act_normed)
 
-            # get action
+            # get action by slicing from start to end
             start = config.task.obs_steps - 1
             end = start + config.task.act_steps
             act = act[:, start:end, :]
@@ -220,7 +224,8 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                 "transport",
             ]:
                 act = dataset.undo_transform_action(act)
-            obs, reward, done, info = envs.step(act)
+            obs, reward, terminated, truncated, info = envs.step(act)
+            done = terminated | truncated
             ep_reward += reward
             t += config.task.act_steps
         success = [1.0 if s > 0 else 0.0 for s in ep_reward]
@@ -297,7 +302,7 @@ def main(config):
         for num_steps in num_steps_list:
             metrics = {"step": num_steps}
             metrics.update(eval(config, envs, dataset, agent, logger, num_steps))
-            logger.log(metrics, category="inference")
+            logger.log(metrics, category="eval")
 
         # print result in easy to read format
         for key, val in metrics.items():

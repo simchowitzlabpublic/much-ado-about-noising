@@ -53,7 +53,27 @@ class RobomimicImageWrapper(gym.Env):
         if raw_obs is None:
             raw_obs = self.env.get_observation()
 
-        self.render_cache = raw_obs[self.render_obs_key]
+        # Debug: Check what keys are available
+        # print(f"DEBUG: Available keys in raw_obs: {list(raw_obs.keys()) if raw_obs else 'None'}")
+        # print(f"DEBUG: Looking for render_obs_key: {self.render_obs_key}")
+
+        # Handle render cache key mapping
+        render_key = self.render_obs_key
+        if render_key not in raw_obs:
+            # Try without _image suffix
+            if render_key.endswith('_image'):
+                base_key = render_key.replace('_image', '')
+                if base_key in raw_obs:
+                    render_key = base_key
+                else:
+                    print(f"ERROR: Neither '{render_key}' nor '{base_key}' found in raw_obs keys: {list(raw_obs.keys())}")
+                    # Use first image key as fallback
+                    for key in raw_obs.keys():
+                        if 'image' in key.lower() or key in ['agentview', 'robot0_eye_in_hand']:
+                            render_key = key
+                            print(f"Using fallback render key: {render_key}")
+                            break
+        self.render_cache = raw_obs[render_key]
 
         obs = dict()
         # Debug: print available keys
@@ -63,8 +83,9 @@ class RobomimicImageWrapper(gym.Env):
         for key in self.observation_space.keys():
             # Map dataset keys to environment keys
             # Dataset has keys like 'robot0_eye_in_hand_image' but env provides 'robot0_eye_in_hand'
+            # Also 'agentview_image' -> 'agentview'
             env_key = key
-            if key.endswith('_image') and key != 'agentview_image':
+            if key.endswith('_image'):
                 # Try removing '_image' suffix for camera observations
                 base_key = key.replace('_image', '')
                 if base_key in raw_obs:

@@ -36,6 +36,7 @@ dependencies = [
     "numcodecs",
     "huggingface-hub",
     "imagecodecs",
+    "datasets>=4.1.1",
 ]
 
 [project.optional-dependencies]

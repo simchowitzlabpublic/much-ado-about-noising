@@ -33,7 +33,22 @@ register_codecs()
 
 
 def make_dataset(task_config, mode="train"):
-    dataset_path = os.path.expanduser(task_config.dataset_path)
+    # Check if we should download from HuggingFace
+    if hasattr(task_config, 'dataset_repo') and hasattr(task_config, 'dataset_filename'):
+        # Auto-download from HuggingFace
+        print(f"Downloading dataset from {task_config.dataset_repo}/{task_config.dataset_filename}")
+        dataset_path = hf_hub_download(
+            repo_id=task_config.dataset_repo,
+            filename=task_config.dataset_filename,
+            repo_type="dataset"
+        )
+        print(f"Downloaded dataset to: {dataset_path}")
+    elif hasattr(task_config, 'dataset_path'):
+        # Use explicit path if provided
+        dataset_path = os.path.expanduser(task_config.dataset_path)
+    else:
+        raise ValueError("Either dataset_repo/dataset_filename or dataset_path must be provided")
+
     if task_config.env_name in ["can", "lift", "square", "tool_hang", "transport"]:
         if task_config.obs_type == "state":
             return RobomimicDataset(

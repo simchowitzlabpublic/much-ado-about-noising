@@ -57,7 +57,10 @@ class TaskConfig:
     obs_type: str = "state"
     env_type: str = "ph"
     abs_action: bool = True
-    dataset_path: str = "data/halfcheetah"
+    # Dataset configuration - either HuggingFace or local path
+    dataset_repo: str | None = None  # HuggingFace repository ID (e.g., "ChaoyiPan/mip-dataset")
+    dataset_filename: str | None = None  # Path within the repository (e.g., "robomimic/lift/ph/image.hdf5")
+    dataset_path: str | None = None  # Local path (deprecated, use dataset_repo/dataset_filename)
     max_episode_steps: int = 400
     obs_keys: list[str] = field(
         default_factory=lambda: [
@@ -77,6 +80,13 @@ class TaskConfig:
     shape_meta: dict = field(default_factory=dict)
     render_obs_key: str = "agentview_image"
     val_dataset_percentage: float = 0.0
+    # Image observation settings
+    rgb_model: str = "resnet18"
+    resize_shape: list[int] | None = None
+    crop_shape: list[int] | None = None
+    random_crop: bool = True
+    use_group_norm: bool = True
+    use_seq: bool = True
 
 
 @dataclass

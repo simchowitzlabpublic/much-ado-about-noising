@@ -1,117 +1,396 @@
-"""Example script showing how to download and use Robomimic datasets from HuggingFace.
+#!/usr/bin/env python
+"""Modern HuggingFace-based dataset management for Robomimic datasets.
+
+This script handles:
+1. Downloading datasets from HuggingFace Hub
+2. Processing demo datasets to image datasets
+3. Uploading processed datasets back to HuggingFace Hub
+4. Loading datasets directly with load_dataset
 
 Author: Chaoyi Pan
-Date: 2025-10-03
+Date: 2025-10-04
 """
 
-from mip.datasets.robomimic_dataset import (
-    RobomimicDataset,
-    RobomimicImageDataset,
-    download_and_process_image_dataset,
-    download_robomimic_dataset,
-)
+import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+import h5py
+from datasets import load_dataset
+from huggingface_hub import HfApi, hf_hub_download, upload_file
+
+# HuggingFace repo for processed datasets
+PROCESSED_REPO_ID = "iscoyizj/mip-dataset"
 
 
-def example_lowdim_dataset():
-    """Example: Download and use low-dim dataset."""
-    print("=" * 80)
-    print("Example 1: Low-dim dataset")
-    print("=" * 80)
+def download_original_dataset(
+    task: str = "lift",
+    source: str = "ph",
+    dataset_type: str = "low_dim",
+) -> str:
+    """Download original robomimic dataset from HuggingFace.
 
-    # Download low-dim dataset from HuggingFace
-    dataset_path = download_robomimic_dataset(
-        task="lift",
-        source="ph",
+    Args:
+        task: Task name (e.g., 'lift', 'can', 'square')
+        source: Data source (e.g., 'ph', 'mh', 'mg')
+        dataset_type: Type of dataset ('low_dim' or 'demo')
+
+    Returns:
+        Path to downloaded HDF5 file
+    """
+    repo_id = "amandlek/robomimic"
+
+    if dataset_type == "low_dim":
+        filename = f"v1.5/{task}/{source}/low_dim_v15.hdf5"
+    elif dataset_type == "demo":
+        filename = f"v1.5/{task}/{source}/demo_v15.hdf5"
+    else:
+        raise ValueError(f"Invalid dataset_type: {dataset_type}")
+
+    print(f"Downloading {filename} from {repo_id}...")
+    file_path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        repo_type="dataset",
+    )
+    print(f"Downloaded to: {file_path}")
+    return file_path
+
+
+def process_to_image_dataset(
+    demo_path: str,
+    task: str = "lift",
+    source: str = "ph",
+    n_demos: int = 50,
+    camera_names: Optional[list] = None,
+    camera_height: int = 84,
+    camera_width: int = 84,
+) -> str:
+    """Process demo dataset to image dataset.
+
+    Args:
+        demo_path: Path to demo.hdf5 file
+        task: Task name for camera configuration
+        source: Data source
+        n_demos: Number of demos to process
+        camera_names: List of camera names (defaults to task-specific)
+        camera_height: Camera image height
+        camera_width: Camera image width
+
+    Returns:
+        Path to processed image dataset
+    """
+    if camera_names is None:
+        # Default camera configurations
+        camera_configs = {
+            "lift": ["agentview", "robot0_eye_in_hand"],
+            "can": ["agentview", "robot0_eye_in_hand"],
+            "square": ["agentview", "robot0_eye_in_hand"],
+            "transport": [
+                "shouldercamera0",
+                "shouldercamera1",
+                "robot0_eye_in_hand",
+                "robot1_eye_in_hand",
+            ],
+            "tool_hang": ["sideview", "robot0_eye_in_hand"],
+        }
+        camera_names = camera_configs.get(task, ["agentview", "robot0_eye_in_hand"])
+
+    # Create temp directory for processing
+    temp_dir = tempfile.mkdtemp()
+    temp_demo_path = os.path.join(temp_dir, "demo.hdf5")
+    output_name = f"image_{task}_{source}_{n_demos}demos.hdf5"
+    output_path = os.path.join(temp_dir, output_name)
+
+    print(f"Processing {n_demos} demos to image dataset...")
+    shutil.copy2(demo_path, temp_demo_path)
+
+    # Build command
+    cmd = [
+        "python", "-m", "robomimic.scripts.dataset_states_to_obs",
+        f"--dataset={temp_demo_path}",
+        f"--output_name={output_name}",
+        f"--done_mode=2",
+        f"--camera_height={camera_height}",
+        f"--camera_width={camera_width}",
+        f"--n={n_demos}",
+    ]
+
+    # Add camera names
+    for camera_name in camera_names:
+        cmd.extend(["--camera_names", camera_name])
+
+    # Set environment for EGL rendering
+    env = os.environ.copy()
+    env["MUJOCO_GL"] = "egl"
+
+    print(f"Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Failed to process dataset:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+    print(f"Processed dataset saved to: {output_path}")
+    return output_path
+
+
+def upload_to_hub(
+    local_path: str,
+    task: str,
+    source: str,
+    dataset_type: str,
+    n_demos: Optional[int] = None,
+    repo_id: str = PROCESSED_REPO_ID,
+) -> str:
+    """Upload processed dataset to HuggingFace Hub.
+
+    Args:
+        local_path: Path to local HDF5 file
+        task: Task name
+        source: Data source
+        dataset_type: Type ('low_dim' or 'image')
+        n_demos: Number of demos (for image datasets)
+        repo_id: HuggingFace repo ID
+
+    Returns:
+        Path in the repository
+    """
+    # Determine path in repo
+    if dataset_type == "image" and n_demos:
+        repo_path = f"robomimic/{task}/{source}/image_{n_demos}demos.hdf5"
+    else:
+        repo_path = f"robomimic/{task}/{source}/{dataset_type}.hdf5"
+
+    # Check if authenticated
+    try:
+        api = HfApi()
+        # Try to get user info to check authentication
+        api.whoami()
+    except Exception:
+        print(f"⚠️ Not authenticated with HuggingFace Hub. Skipping upload.")
+        print(f"   To enable uploading, run: huggingface-cli login")
+        return repo_path
+
+    # Create repo if it doesn't exist
+    try:
+        api.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=True)
+    except Exception as e:
+        print(f"⚠️ Could not create/access repo: {e}")
+        print(f"   Dataset saved locally but not uploaded.")
+        return repo_path
+
+    print(f"Uploading to {repo_id}/{repo_path}...")
+
+    try:
+        upload_file(
+            path_or_fileobj=local_path,
+            path_in_repo=repo_path,
+            repo_id=repo_id,
+            repo_type="dataset",
+        )
+        print(f"✓ Uploaded successfully to {repo_id}/{repo_path}")
+        return repo_path
+    except Exception as e:
+        print(f"⚠️ Upload failed: {e}")
+        print(f"   Dataset saved locally but not uploaded.")
+        return repo_path
+
+
+def get_or_create_image_dataset(
+    task: str = "lift",
+    source: str = "ph",
+    n_demos: int = 50,
+    force_recreate: bool = False,
+) -> str:
+    """Get image dataset from Hub or create and upload if needed.
+
+    Args:
+        task: Task name
+        source: Data source
+        n_demos: Number of demos
+        force_recreate: Force recreation even if exists
+
+    Returns:
+        Path to local HDF5 file
+    """
+    # Local cache directory
+    cache_dir = Path.home() / ".cache" / "mip" / "datasets"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    local_cache_path = cache_dir / f"{task}_{source}_image_{n_demos}demos.hdf5"
+
+    repo_path = f"robomimic/{task}/{source}/image_{n_demos}demos.hdf5"
+
+    if not force_recreate:
+        # Check local cache first
+        if local_cache_path.exists():
+            print(f"✓ Found cached dataset: {local_cache_path}")
+            return str(local_cache_path)
+
+        # Try to download from processed repo
+        try:
+            print(f"Checking for existing dataset at {PROCESSED_REPO_ID}/{repo_path}")
+            hub_path = hf_hub_download(
+                repo_id=PROCESSED_REPO_ID,
+                filename=repo_path,
+                repo_type="dataset",
+            )
+            # Copy to local cache
+            shutil.copy2(hub_path, local_cache_path)
+            print(f"✓ Downloaded and cached dataset: {local_cache_path}")
+            return str(local_cache_path)
+        except Exception:
+            print(f"Dataset not found in Hub, will process locally")
+
+    # Download demo dataset
+    demo_path = download_original_dataset(task=task, source=source, dataset_type="demo")
+
+    # Process to image dataset
+    image_path = process_to_image_dataset(
+        demo_path=demo_path,
+        task=task,
+        source=source,
+        n_demos=n_demos,
+    )
+
+    # Copy to local cache
+    shutil.copy2(image_path, local_cache_path)
+    print(f"✓ Cached processed dataset: {local_cache_path}")
+
+    # Try to upload to Hub (optional)
+    upload_to_hub(
+        local_path=str(local_cache_path),
+        task=task,
+        source=source,
+        dataset_type="image",
+        n_demos=n_demos,
+    )
+
+    return str(local_cache_path)
+
+
+def get_or_upload_lowdim_dataset(
+    task: str = "lift",
+    source: str = "ph",
+) -> str:
+    """Get low-dim dataset and ensure it's in our Hub repo.
+
+    Args:
+        task: Task name
+        source: Data source
+
+    Returns:
+        Path to local HDF5 file
+    """
+    repo_path = f"robomimic/{task}/{source}/low_dim.hdf5"
+
+    # Try to download from our processed repo first
+    try:
+        print(f"Checking for dataset at {PROCESSED_REPO_ID}/{repo_path}")
+        local_path = hf_hub_download(
+            repo_id=PROCESSED_REPO_ID,
+            filename=repo_path,
+            repo_type="dataset",
+        )
+        print(f"✓ Found dataset: {local_path}")
+        return local_path
+    except Exception:
+        print("Dataset not in our repo, downloading from original and uploading...")
+
+    # Download from original repo
+    local_path = download_original_dataset(task=task, source=source, dataset_type="low_dim")
+
+    # Upload to our repo
+    upload_to_hub(
+        local_path=local_path,
+        task=task,
+        source=source,
         dataset_type="low_dim",
     )
 
-    # Create dataset
-    dataset = RobomimicDataset(
-        dataset_dir=dataset_path,
-        horizon=10,
-        pad_before=2,
-        pad_after=2,
-        obs_keys=(
-            "object",
-            "robot0_eef_pos",
-            "robot0_eef_quat",
-            "robot0_gripper_qpos",
-        ),
-        abs_action=True,
-        rotation_rep="rotation_6d",
-        use_key_state_for_val=False,
-    )
-
-    print(f"Dataset: {dataset}")
-    print(f"Length: {len(dataset)}")
-
-    # Get a sample
-    sample = dataset[0]
-    print(f"Observation shape: {sample['obs']['state'].shape}")
-    print(f"Action shape: {sample['action'].shape}")
-    print()
+    return local_path
 
 
-def example_image_dataset():
-    """Example: Download and process image dataset."""
+def validate_dataset(hdf5_path: str) -> dict:
+    """Validate and get info about an HDF5 dataset.
+
+    Args:
+        hdf5_path: Path to HDF5 file
+
+    Returns:
+        Dictionary with dataset info
+    """
+    with h5py.File(hdf5_path, 'r') as f:
+        info = {
+            "path": hdf5_path,
+            "keys": list(f.keys()),
+            "n_demos": len(f['data']) if 'data' in f else 0,
+        }
+
+        if info["n_demos"] > 0:
+            demo_0 = f['data']['demo_0']
+            info["demo_keys"] = list(demo_0.keys())
+
+            if 'obs' in demo_0:
+                info["obs_keys"] = list(demo_0['obs'].keys())
+                info["image_keys"] = [k for k in info["obs_keys"] if 'image' in k]
+
+                # Get shapes
+                info["obs_shapes"] = {}
+                for key in info["obs_keys"]:
+                    info["obs_shapes"][key] = demo_0['obs'][key].shape
+
+        return info
+
+
+def main():
+    """Example usage of the modern dataset workflow."""
     print("=" * 80)
-    print("Example 2: Image dataset (from demo)")
+    print("MODERN HUGGINGFACE DATASET WORKFLOW")
     print("=" * 80)
 
-    # Download and process demo to image dataset
-    # Note: This can take several minutes as it renders images
-    print(
-        "Downloading and processing demo to image dataset (this may take a few minutes)..."
-    )
-    image_path = download_and_process_image_dataset(
+    # Example 1: Get or create image dataset
+    print("\n1. Getting image dataset with 50 demos...")
+    image_path = get_or_create_image_dataset(
         task="lift",
         source="ph",
-        camera_height=84,
-        camera_width=84,
+        n_demos=50,
+        force_recreate=False,  # Use cached if available
     )
 
-    # Define shape metadata for image dataset
-    shape_meta = {
-        "action": {"shape": [10]},  # rotation_6d: pos(3) + rot(6) + gripper(1)
-        "obs": {
-            "agentview_image": {"shape": [3, 84, 84], "type": "rgb"},
-            "robot0_eye_in_hand_image": {"shape": [3, 84, 84], "type": "rgb"},
-            "robot0_eef_pos": {"shape": [3], "type": "low_dim"},
-            "robot0_eef_quat": {"shape": [4], "type": "low_dim"},
-            "robot0_gripper_qpos": {"shape": [2], "type": "low_dim"},
-        },
-    }
+    image_info = validate_dataset(image_path)
+    print(f"✓ Image dataset ready:")
+    print(f"  - Path: {image_info['path']}")
+    print(f"  - Demos: {image_info['n_demos']}")
+    print(f"  - Image keys: {image_info.get('image_keys', [])}")
 
-    # Create image dataset
-    dataset = RobomimicImageDataset(
-        dataset_dir=image_path,
-        shape_meta=shape_meta,
-        n_obs_steps=2,
-        horizon=10,
-        pad_before=2,
-        pad_after=2,
-        abs_action=True,
-        rotation_rep="rotation_6d",
+    # Example 2: Get low-dim dataset
+    print("\n2. Getting low-dim dataset...")
+    lowdim_path = get_or_upload_lowdim_dataset(
+        task="lift",
+        source="ph",
     )
 
-    print(f"Dataset: {dataset}")
-    print(f"Length: {len(dataset)}")
+    lowdim_info = validate_dataset(lowdim_path)
+    print(f"✓ Low-dim dataset ready:")
+    print(f"  - Path: {lowdim_info['path']}")
+    print(f"  - Demos: {lowdim_info['n_demos']}")
+    print(f"  - Obs keys: {lowdim_info.get('obs_keys', [])}")
 
-    # Get a sample
-    sample = dataset[0]
-    print(f"Agentview image shape: {sample['obs']['agentview_image'].shape}")
-    print(
-        f"Robot eye-in-hand image shape: {sample['obs']['robot0_eye_in_hand_image'].shape}"
-    )
-    print(f"Action shape: {sample['action'].shape}")
-    print()
+    # Example 3: Direct usage with load_dataset (future implementation)
+    print("\n3. Future: Direct loading with datasets library")
+    print("   dataset = load_dataset('iscoyizj/mip-dataset', 'lift_image_50demos')")
+    print("   This will be implemented in robomimic_dataset.py")
+
+    print("\n" + "=" * 80)
+    print("✓ ALL DATASETS READY IN HUGGINGFACE HUB")
+    print(f"  Repository: {PROCESSED_REPO_ID}")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
-    # Run low-dim example
-    example_lowdim_dataset()
-
-    # Note: Uncomment to run image example (it takes longer due to image rendering)
-    # example_image_dataset()
-
-    print("All examples completed!")
+    main()

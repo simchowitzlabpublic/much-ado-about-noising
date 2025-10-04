@@ -79,7 +79,19 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
             )
             return env
 
-        dataset_path = os.path.expanduser(task_config.dataset_path)
+        # Get dataset path (either from explicit path or HuggingFace download)
+        if hasattr(task_config, 'dataset_repo') and hasattr(task_config, 'dataset_filename'):
+            from huggingface_hub import hf_hub_download
+            dataset_path = hf_hub_download(
+                repo_id=task_config.dataset_repo,
+                filename=task_config.dataset_filename,
+                repo_type="dataset"
+            )
+        elif hasattr(task_config, 'dataset_path'):
+            dataset_path = os.path.expanduser(task_config.dataset_path)
+        else:
+            raise ValueError("Either dataset_repo/dataset_filename or dataset_path must be provided")
+
         env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path)
         if task_config.obs_type == "image":
             # disable object state observation for image mode

@@ -106,7 +106,17 @@ class VanillaMLP(BaseNetwork):
         """
         # Flatten inputs and concatenate s, t directly
         x_flat = torch.flatten(x, 1)  # (b, Ta * act_dim)
-        condition_flat = torch.flatten(condition, 1)  # (b, To * obs_dim)
+
+        # Handle condition - use zeros if None
+        if condition is not None:
+            condition_flat = torch.flatten(condition, 1)  # (b, To * obs_dim)
+        else:
+            # Create zeros for missing condition to maintain consistent input size
+            batch_size = x.shape[0]
+            condition_flat = torch.zeros(
+                batch_size, self.To * self.obs_dim, device=x.device, dtype=x.dtype
+            )
+
         s_expanded = s.unsqueeze(-1)  # (b, 1)
         t_expanded = t.unsqueeze(-1)  # (b, 1)
         input_data = torch.cat([x_flat, condition_flat, s_expanded, t_expanded], dim=-1)
@@ -273,18 +283,26 @@ class MLP(BaseNetwork):
         """
         x_flat = torch.flatten(x, 1)  # (b, Ta * act_dim)
 
+        # Handle condition - use zeros if None
+        if condition is not None:
+            condition_flat = torch.flatten(condition, 1)  # (b, To * obs_dim)
+        else:
+            # Create zeros for missing condition to maintain consistent input size
+            batch_size = x.shape[0]
+            condition_flat = torch.zeros(
+                batch_size, self.To * self.obs_dim, device=x.device, dtype=x.dtype
+            )
+
         if not self.disable_time_embedding:
             # Apply uniform frequency embeddings to time inputs
             s_embedded = self._embed_time(s)  # (b, timestep_emb_dim)
             t_embedded = self._embed_time(t)  # (b, timestep_emb_dim)
 
-            condition_flat = torch.flatten(condition, 1)  # (b, To * obs_dim)
             input_data = torch.cat(
                 [x_flat, s_embedded, t_embedded, condition_flat], dim=-1
             )  # (b, Ta * act_dim + 2 * timestep_emb_dim + To * obs_dim)
         else:
             # Skip time embeddings when disabled
-            condition_flat = torch.flatten(condition, 1)  # (b, To * obs_dim)
             input_data = torch.cat(
                 [x_flat, condition_flat], dim=-1
             )  # (b, Ta * act_dim + To * obs_dim)

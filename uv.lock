@@ -532,6 +532,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b3/c3/c5fea892e18631721a7d7e492a790bde8e3dc930861866bedb38762d0d7c/egl_probe-1.0.2.tar.gz", hash = "sha256:29bdca7b08da1e060cfb42cd46af8300a7ac4f3b1b2eeb16e545ea16d9a5ac93", size = 217495, upload-time = "2021-07-16T08:50:18.481Z" }
 
 [[package]]
+name = "einops"
+version = "0.8.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/81/df4fbe24dff8ba3934af99044188e20a98ed441ad17a274539b74e82e126/einops-0.8.1.tar.gz", hash = "sha256:de5d960a7a761225532e0f1959e5315ebeafc0cd43394732f103ca44b9837e84", size = 54805, upload-time = "2025-02-09T03:17:00.434Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/62/9773de14fe6c45c23649e98b83231fffd7b9892b6cf863251dc2afa73643/einops-0.8.1-py3-none-any.whl", hash = "sha256:919387eb55330f5757c6bea9165c5ff5cfe63a642682ea788a6d472576d81737", size = 64359, upload-time = "2025-02-09T03:17:01.998Z" },
+]
+
+[[package]]
 name = "etils"
 version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1345,6 +1354,7 @@ dependencies = [
     { name = "av" },
     { name = "datasets" },
     { name = "dill" },
+    { name = "einops" },
     { name = "gymnasium" },
     { name = "h5py" },
     { name = "huggingface-hub" },
@@ -1390,6 +1400,7 @@ requires-dist = [
     { name = "av" },
     { name = "datasets", specifier = ">=4.1.1" },
     { name = "dill" },
+    { name = "einops", specifier = ">=0.8.1" },
     { name = "gymnasium" },
     { name = "h5py" },
     { name = "huggingface-hub" },

@@ -20,7 +20,6 @@ class TestMakeRobomimicEnv:
             obs_type="state",
             dataset_path="~/data/lift/ph/low_dim.hdf5",
             obs_keys=["robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"],
-            seed=42,
         )
 
         thunk = make_robomimic_env(task_config, idx=0, render=False)
@@ -34,7 +33,6 @@ class TestMakeRobomimicEnv:
             env_name="lift",
             obs_type="state",
             dataset_path="~/data/lift/ph/low_dim.hdf5",
-            seed=42,
         )
 
         thunk1 = make_robomimic_env(task_config, idx=0, render=False)
@@ -50,7 +48,6 @@ class TestMakeRobomimicEnv:
             env_name="lift",
             obs_type="state",
             dataset_path="~/data/lift/ph/low_dim.hdf5",
-            seed=42,
         )
 
         thunk = make_robomimic_env(task_config, idx=0, render=True)
@@ -71,7 +68,6 @@ class TestMakeEnv:
                 env_name=env_name,
                 obs_type="state",
                 dataset_path=f"~/data/{env_name}/ph/low_dim.hdf5",
-                seed=42,
             )
 
             thunk = make_env(task_config, idx=0, render=False)
@@ -85,7 +81,6 @@ class TestMakeEnv:
             env_name="unsupported_env",
             obs_type="state",
             dataset_path="~/data/unsupported/ph/low_dim.hdf5",
-            seed=42,
         )
 
         try:
@@ -107,7 +102,6 @@ class TestMakeVecEnv:
             obs_type="state",
             dataset_path="~/data/lift/ph/low_dim.hdf5",
             num_envs=1,
-            seed=42,
         )
 
         # Mock the thunk
@@ -136,7 +130,6 @@ class TestMakeVecEnv:
             dataset_path="~/data/lift/ph/low_dim.hdf5",
             num_envs=4,
             save_video=True,
-            seed=42,
         )
 
         # Mock the thunk
@@ -165,7 +158,6 @@ class TestMakeVecEnv:
             dataset_path="~/data/lift/ph/low_dim.hdf5",
             num_envs=4,
             save_video=False,
-            seed=42,
         )
 
         # Mock the thunk
@@ -189,7 +181,6 @@ class TestMakeVecEnv:
             obs_type="state",
             dataset_path="~/data/unsupported/ph/low_dim.hdf5",
             num_envs=1,
-            seed=42,
         )
 
         try:

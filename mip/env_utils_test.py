@@ -167,7 +167,7 @@ class TestMultiStepWrapper:
         mock_env.reset.return_value = np.array([1, 2, 3, 4], dtype=np.float32)
 
         wrapper = MultiStepWrapper(mock_env, n_obs_steps=2, n_action_steps=3)
-        obs = wrapper.reset()
+        obs, info = wrapper.reset()
 
         assert obs.shape == (2, 4)
         mock_env.reset.assert_called_once()

@@ -1,0 +1,19 @@
+# @package network
+defaults:
+  - _self_
+
+network_type: "jannerunet"
+encoder_type: "identity"
+emb_dim: 32
+num_layers: 6  # Not directly used, but kept for compatibility
+dropout: 0.0
+encoder_dropout: 0.0
+timestep_emb_dim: 128
+
+# JannerUNet specific configs
+model_dim: 32
+kernel_size: 3
+dim_mult: [1, 2, 2, 2]  # Dimension multipliers for U-Net layers
+norm_type: "groupnorm"  # Options: groupnorm, layernorm
+attention: false  # Whether to use linear attention
+timestep_emb_type: "positional"

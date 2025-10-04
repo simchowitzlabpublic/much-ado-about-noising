@@ -1,0 +1,15 @@
+# @package network
+defaults:
+  - _self_
+
+network_type: "rnn"
+encoder_type: "identity"
+emb_dim: 256  # Used as rnn_hidden_dim
+num_layers: 2  # Used as rnn_num_layers
+dropout: 0.1
+encoder_dropout: 0.0
+timestep_emb_dim: 128
+
+# RNN specific configs
+rnn_type: "LSTM"  # Options: LSTM, GRU
+max_freq: 100.0  # Maximum frequency for time embeddings

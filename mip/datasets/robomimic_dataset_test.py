@@ -535,6 +535,10 @@ class TestWithRealData:
         print(f"Obs state shape: {item['obs']['state'].shape}")
         print(f"Action shape: {item['action'].shape}")
 
+    @pytest.mark.skipif(
+        os.environ.get("DISPLAY") is None and os.environ.get("MUJOCO_GL") != "osmesa",
+        reason="Requires display or osmesa for rendering",
+    )
     def test_process_demo_to_image(self, real_demo_data_path):
         """Test processing demo file to image dataset."""
         # Create temporary output file
@@ -576,6 +580,10 @@ class TestWithRealData:
             if os.path.exists(output_path):
                 os.remove(output_path)
 
+    @pytest.mark.skipif(
+        os.environ.get("DISPLAY") is None and os.environ.get("MUJOCO_GL") != "osmesa",
+        reason="Requires display or osmesa for rendering",
+    )
     def test_download_and_process_image_dataset(self):
         """Test convenience function to download and process image dataset."""
         with tempfile.NamedTemporaryFile(suffix=".hdf5", delete=False) as tmp:
@@ -609,6 +617,10 @@ class TestWithRealData:
             if os.path.exists(output_path):
                 os.remove(output_path)
 
+    @pytest.mark.skipif(
+        os.environ.get("DISPLAY") is None and os.environ.get("MUJOCO_GL") != "osmesa",
+        reason="Requires display or osmesa for rendering",
+    )
     def test_with_real_image_data(self, real_demo_data_path):
         """Test RobomimicImageDataset with real data from HF."""
         # Process demo to image dataset

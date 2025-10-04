@@ -37,6 +37,7 @@ dependencies = [
     "huggingface-hub",
     "imagecodecs",
     "datasets>=4.1.1",
+    "einops>=0.8.1",
 ]
 
 [project.optional-dependencies]

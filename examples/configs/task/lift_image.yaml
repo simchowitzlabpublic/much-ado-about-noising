@@ -1,0 +1,49 @@
+# @package task
+defaults:
+  - _self_
+
+env_name: "lift"
+obs_type: "image"
+env_type: "ph"
+abs_action: true
+dataset_path: "~/.cache/huggingface/hub/datasets--amandlek--robomimic/snapshots/74fa018461f479cd9fd15b924a16103012096203/v1.5/lift/ph/image_v15.hdf5"
+max_episode_steps: 400
+render_obs_key: "agentview_image"
+shape_meta:
+  action:
+    shape:
+      - 10
+  obs:
+    agentview_image:
+      shape:
+        - 3
+        - 84
+        - 84
+      type: rgb
+    robot0_eef_pos:
+      shape:
+        - 3
+      type: low_dim
+    robot0_eef_quat:
+      shape:
+        - 4
+      type: low_dim
+    robot0_eye_in_hand_image:
+      shape:
+        - 3
+        - 84
+        - 84
+      type: rgb
+    robot0_gripper_qpos:
+      shape:
+        - 2
+      type: low_dim
+# obs_encoder
+rgb_model: resnet18
+resize_shape: null
+crop_shape:
+  - 76
+  - 76
+random_crop: true
+use_group_norm: true
+use_seq: true

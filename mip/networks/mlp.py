@@ -1,6 +1,4 @@
-"""
-MLP network.
-"""
+"""MLP network."""
 
 import torch
 import torch.nn as nn
@@ -26,8 +24,7 @@ class VanillaMLP(BaseNetwork):
         dropout: float = 0.1,
         expansion_factor: int = 1,  # Set to 4 to match original MLP
     ):
-        """
-        Args:
+        """Args:
             act_dim: (int) - action dimension
             Ta: (int) - action sequence length
             obs_dim: (int) - observation dimension
@@ -35,7 +32,7 @@ class VanillaMLP(BaseNetwork):
             emb_dim: (int) - embedding dimension
             n_layers: (int) - number of layers
             dropout: (float) - dropout rate
-            expansion_factor: (int) - expansion factor for hidden layers
+            expansion_factor: (int) - expansion factor for hidden layers.
 
         Returns:
             None
@@ -97,12 +94,11 @@ class VanillaMLP(BaseNetwork):
     def forward(
         self, x: torch.Tensor, s: torch.Tensor, t: torch.Tensor, condition: torch.Tensor
     ):
-        """
-        Args:
+        """Args:
             x: (b, Ta, act_dim)
             s: (b, ) - concatenated directly
             t: (b, ) - concatenated directly
-            condition: (b, To, obs_dim)
+            condition: (b, To, obs_dim).
 
         Returns:
             output_data: (b, Ta, act_dim)
@@ -237,8 +233,7 @@ class MLP(BaseNetwork):
         nn.init.constant_(self.scalar_output.bias, 0)
 
     def _embed_time(self, t):
-        """
-        Embed time values using uniform frequencies and sin/cos functions.
+        """Embed time values using uniform frequencies and sin/cos functions.
 
         Args:
             t: (batch_size,) tensor of time values
@@ -266,12 +261,11 @@ class MLP(BaseNetwork):
     def forward(
         self, x: torch.Tensor, s: torch.Tensor, t: torch.Tensor, condition: torch.Tensor
     ):
-        """
-        Args:
+        """Args:
             x: (b, Ta, act_dim)
             s: (b, )
             t: (b, )
-            condition: (b, To, obs_dim)
+            condition: (b, To, obs_dim).
 
         Returns:
             output_data: (b, Ta, act_dim)

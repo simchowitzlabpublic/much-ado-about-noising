@@ -74,6 +74,24 @@ ignore = [
     "D100",   # Missing docstring in public module
     "D104",   # Missing docstring in public package
     "D107",   # Missing docstring in `__init__`
+    "D101",   # Missing docstring in public class
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D105",   # Missing docstring in magic method
+    "D205",   # 1 blank line required between summary line and description
+    "D415",   # First line should end with a period
+    "D417",   # Missing argument descriptions in docstring
+    "N802",   # Function name should be lowercase
+    "N803",   # Argument name should be lowercase
+    "N806",   # Variable in function should be lowercase (often used for test variables)
+    "N812",   # Lowercase imported as non-lowercase
+    "B007",   # Loop control variable not used within loop body
+    "B008",   # Function call in default argument
+    "SIM102", # Use single if statement instead of nested
+    "SIM105", # Use contextlib.suppress instead of try-except-pass
+    "SIM117", # Multiple with statements
+    "UP007",  # Non-PEP604 annotation union
+    "UP038",  # Use X | Y in isinstance call instead of (X, Y)
 ]
 
 [tool.ruff.format]

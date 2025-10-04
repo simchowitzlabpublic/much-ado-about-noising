@@ -1,10 +1,11 @@
 """Logger for training and evaluation.
-Port from https://github.com/CleanDiffuserTeam/CleanDiffuser
+Port from https://github.com/CleanDiffuserTeam/CleanDiffuser.
 
 Author: Chaoyi Pan
 Date: 2025-10-03
 """
 
+import contextlib
 import json
 import os
 import uuid
@@ -20,10 +21,8 @@ from mip.env_utils import VideoRecordingWrapper
 
 def make_dir(dir_path):
     """Create directory if it does not already exist."""
-    try:
+    with contextlib.suppress(OSError):
         os.makedirs(dir_path)
-    except OSError:
-        pass
     return dir_path
 
 
@@ -60,10 +59,7 @@ class Logger:
             video_id: Identifier for the video file
         """
         # Check if env has VideoRecordingWrapper
-        if isinstance(env.env, VideoRecordingWrapper):
-            video_env = env.env
-        else:
-            video_env = env
+        video_env = env.env if isinstance(env.env, VideoRecordingWrapper) else env
 
         # Only proceed if the environment has video recording capability
         if not isinstance(video_env, VideoRecordingWrapper):
@@ -100,7 +96,7 @@ class Logger:
             f.write(json.dumps(json_safe_dict) + "\n")
 
         # Prepare wandb logging dict with category prefix
-        _d = dict()
+        _d = {}
         for k, v in d.items():
             _d[category + "/" + k] = v
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Upload processed datasets to HuggingFace Hub."""
 
-from huggingface_hub import HfApi, upload_file
 import os
+
+from huggingface_hub import HfApi, upload_file
 
 # Repository configuration
 REPO_ID = "ChaoyiPan/mip-dataset"
@@ -11,15 +12,17 @@ REPO_ID = "ChaoyiPan/mip-dataset"
 files_to_upload = [
     {
         "local_path": "/home/ANT.AMAZON.COM/iscoyizj/.cache/huggingface/hub/datasets--amandlek--robomimic/snapshots/74fa018461f479cd9fd15b924a16103012096203/v1.5/lift/ph/image_v15.hdf5",
-        "repo_path": "robomimic/lift/ph/image.hdf5"
+        "repo_path": "robomimic/lift/ph/image.hdf5",
     },
     {
         "local_path": "/home/ANT.AMAZON.COM/iscoyizj/.cache/huggingface/hub/datasets--amandlek--robomimic/snapshots/74fa018461f479cd9fd15b924a16103012096203/v1.5/lift/ph/low_dim_v15.hdf5",
-        "repo_path": "robomimic/lift/ph/low_dim.hdf5"
-    }
+        "repo_path": "robomimic/lift/ph/low_dim.hdf5",
+    },
 ]
 
+
 def main():
+    """Upload datasets to Hugging Face Hub."""
     api = HfApi()
 
     # Create repository if it doesn't exist
@@ -52,8 +55,9 @@ def main():
         except Exception as e:
             print(f"✗ Failed to upload {repo_path}: {e}")
 
-    print(f"\n✓ Dataset upload complete!")
+    print("\n✓ Dataset upload complete!")
     print(f"  Repository: https://huggingface.co/datasets/{REPO_ID}")
+
 
 if __name__ == "__main__":
     main()

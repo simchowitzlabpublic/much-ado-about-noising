@@ -8,7 +8,6 @@ Date: 2025-10-03
 
 import copy
 from collections.abc import Callable
-from typing import List
 
 import torch
 import torch.nn as nn
@@ -50,7 +49,7 @@ class CropRandomizer(nn.Module):
         crop_width (int): crop width
         num_crops (int): number of random crops to take
         pos_enc (bool): if True, add 2 channels to the output to encode the spatial
-            location of the cropped pixels in the source image
+            location of the cropped pixels in the source image.
         """
         super().__init__()
 
@@ -401,7 +400,7 @@ class Mlp(nn.Module):
     def __init__(
         self,
         in_dim: int,
-        hidden_dims: List[int],
+        hidden_dims: list[int],
         out_dim: int,
         activation: nn.Module = nn.ReLU(),
         out_activation: nn.Module = nn.Identity(),
@@ -430,7 +429,7 @@ class Mlp(nn.Module):
 
 
 class MLPEncoder(BaseEncoder):
-    """A simple MLP encoder
+    """A simple MLP encoder.
 
     Use a simple MLP to project the input condition to the desired dimension.
 
@@ -460,7 +459,7 @@ class MLPEncoder(BaseEncoder):
         self,
         in_dim: int,
         out_dim: int,
-        hidden_dims: List[int],
+        hidden_dims: list[int],
         act=nn.LeakyReLU(),
         dropout: float = 0.25,
     ):
@@ -529,7 +528,7 @@ def replace_submodules(
 
 def get_resnet(name, weights=None, **kwargs):
     """name: resnet18, resnet34, resnet50
-    weights: "IMAGENET1K_V1", "r3m"
+    weights: "IMAGENET1K_V1", "r3m".
     """
     func = getattr(torchvision.models, name)
     resnet = func(weights=weights, **kwargs)
@@ -540,7 +539,7 @@ def get_resnet(name, weights=None, **kwargs):
 class MultiImageObsEncoder(BaseEncoder):
     """Input:
         - condition: {"cond1": (b, *cond1_shape), "cond2": (b, *cond2_shape), ...} or (b, *cond_in_shape)
-        - mask :     (b, *mask_shape) or None, None means no mask
+        - mask :     (b, *mask_shape) or None, None means no mask.
 
     Output:
         - condition: (b, *cond_out_shape)
@@ -570,11 +569,11 @@ class MultiImageObsEncoder(BaseEncoder):
         keep_horizon_dims=False,
     ):
         super().__init__()
-        rgb_keys = list()
-        low_dim_keys = list()
+        rgb_keys = []
+        low_dim_keys = []
         key_model_map = nn.ModuleDict()
         key_transform_map = nn.ModuleDict()
-        key_shape_map = dict()
+        key_shape_map = {}
 
         # rgb_model
         if "resnet" in rgb_model_name:
@@ -682,17 +681,17 @@ class MultiImageObsEncoder(BaseEncoder):
 
     def multi_image_forward(self, obs_dict):
         batch_size = None
-        features = list()
+        features = []
 
         if self.use_seq:
             # input: (bs, horizon, c, h, w)
-            for k in obs_dict.keys():
+            for k in obs_dict:
                 obs_dict[k] = obs_dict[k].flatten(end_dim=1)
 
         # process rgb input
         if self.share_rgb_model:
             # pass all rgb obs to rgb model
-            imgs = list()
+            imgs = []
             for key in self.rgb_keys:
                 img = obs_dict[key]
                 if batch_size is None:
@@ -754,15 +753,12 @@ class MultiImageObsEncoder(BaseEncoder):
 
     @torch.no_grad()
     def output_shape(self):
-        example_obs_dict = dict()
+        example_obs_dict = {}
         obs_shape_meta = self.shape_meta["obs"]
         batch_size = 1
         for key, attr in obs_shape_meta.items():
             shape = tuple(attr["shape"])
-            if self.use_seq:
-                prefix = (batch_size, 1)
-            else:
-                prefix = (batch_size,)
+            prefix = (batch_size, 1) if self.use_seq else (batch_size,)
             this_obs = torch.zeros(prefix + shape, dtype=self.dtype, device=self.device)
             example_obs_dict[key] = this_obs
         example_output = self.multi_image_forward(example_obs_dict)

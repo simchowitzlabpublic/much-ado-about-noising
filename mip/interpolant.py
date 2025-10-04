@@ -1,19 +1,15 @@
-"""
-Interpolant is a stochastic interpolant with different types of interpolation.
-"""
+"""Interpolant is a stochastic interpolant with different types of interpolation."""
 
 import torch
-from typing import Callable, Optional, Union
 
 from mip.torch_utils import at_least_ndim
 
 
 class Interpolant:
-    """Class for a stochastic interpolant with different types of interpolation"""
+    """Class for a stochastic interpolant with different types of interpolation."""
 
     def __init__(self, interp_type: str = "linear"):
-        """
-        Initialize an interpolant with the specified type
+        """Initialize an interpolant with the specified type.
 
         Args:
             interp_type: Type of interpolation ("linear" or "trig")
@@ -58,15 +54,15 @@ class Interpolant:
             )
 
     def calc_It(
-        self, t: Union[float, torch.Tensor], x0: torch.Tensor, x1: torch.Tensor
+        self, t: float | torch.Tensor, x0: torch.Tensor, x1: torch.Tensor
     ) -> torch.Tensor:
-        """Calculate the interpolant at time t"""
+        """Calculate the interpolant at time t."""
         t = at_least_ndim(t, x0.dim())
         return self.alpha(t) * x0 + self.beta(t) * x1
 
     def calc_It_dot(
-        self, t: Union[float, torch.Tensor], x0: torch.Tensor, x1: torch.Tensor
+        self, t: float | torch.Tensor, x0: torch.Tensor, x1: torch.Tensor
     ) -> torch.Tensor:
-        """Calculate the time derivative of the interpolant at time t"""
+        """Calculate the time derivative of the interpolant at time t."""
         t = at_least_ndim(t, x0.dim())
         return self.alpha_dot(t) * x0 + self.beta_dot(t) * x1

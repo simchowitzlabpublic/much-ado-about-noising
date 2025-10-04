@@ -1,4 +1,4 @@
-"""Test file for robomimic_dataset.py
+"""Test file for robomimic_dataset.py.
 
 Author: Chaoyi Pan
 Date: 2025-10-03
@@ -127,7 +127,7 @@ class TestRobomimicDataset:
         assert dataset.horizon == 10
         assert dataset.pad_before == 2
         assert dataset.pad_after == 2
-        assert dataset.abs_action == False
+        assert not dataset.abs_action
 
     def test_len(self, temp_hdf5_file):
         """Test that __len__ returns correct length."""

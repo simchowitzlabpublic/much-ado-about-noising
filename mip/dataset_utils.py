@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import zarr
 from loguru import logger
+from scipy import interpolate
 
 from mip.config import TaskConfig
 from mip.datasets import rotation_conversion as rc
@@ -72,7 +73,7 @@ def get_optimal_chunks(shape, dtype, target_chunk_bytes=2e6, max_chunk_length=No
     T,D
     T,N,D
     T,H,W,C
-    T,N,H,W,C
+    T,N,H,W,C.
     """
     itemsize = np.dtype(dtype).itemsize
     # reversed
@@ -121,7 +122,7 @@ class ReplayBuffer:
                 assert value.shape[0] == root["meta"]["episode_ends"][-1]
         else:
             # zarr v3 Group interface
-            for key in data_group.keys():
+            for key in data_group:
                 value = data_group[key]
                 assert value.shape[0] == root["meta"]["episode_ends"][-1]
         self.root = root
@@ -133,10 +134,10 @@ class ReplayBuffer:
             if storage is None:
                 storage = zarr.MemoryStore()
             root = zarr.group(store=storage)
-        data = root.require_group("data", overwrite=False)
+        root.require_group("data", overwrite=False)
         meta = root.require_group("meta", overwrite=False)
         if "episode_ends" not in meta:
-            episode_ends = meta.zeros(
+            meta.zeros(
                 "episode_ends",
                 shape=(0,),
                 dtype=np.int64,
@@ -148,7 +149,7 @@ class ReplayBuffer:
     @classmethod
     def create_empty_numpy(cls):
         root = {
-            "data": dict(),
+            "data": {},
             "meta": {"episode_ends": np.zeros((0,), dtype=np.int64)},
         }
         return cls(root=root)
@@ -178,17 +179,21 @@ class ReplayBuffer:
         src_store,
         store=None,
         keys=None,
-        chunks: dict[str, tuple] = dict(),
-        compressors: dict | str | numcodecs.abc.Codec = dict(),
+        chunks: dict[str, tuple] = None,
+        compressors: dict | str | numcodecs.abc.Codec = None,
         if_exists="replace",
         **kwargs,
     ):
         """Load to memory."""
+        if compressors is None:
+            compressors = {}
+        if chunks is None:
+            chunks = {}
         src_root = zarr.group(src_store)
         root = None
         if store is None:
             # numpy backend
-            meta = dict()
+            meta = {}
             for key, value in src_root["meta"].items():
                 if len(value.shape) == 0:
                     meta[key] = np.array(value)
@@ -197,7 +202,7 @@ class ReplayBuffer:
 
             if keys is None:
                 keys = src_root["data"].keys()
-            data = dict()
+            data = {}
             for key in keys:
                 arr = src_root["data"][key]
                 data[key] = arr[:]
@@ -252,14 +257,18 @@ class ReplayBuffer:
         backend=None,
         store=None,
         keys=None,
-        chunks: dict[str, tuple] = dict(),
-        compressors: dict | str | numcodecs.abc.Codec = dict(),
+        chunks: dict[str, tuple] = None,
+        compressors: dict | str | numcodecs.abc.Codec = None,
         if_exists="replace",
         **kwargs,
     ):
         """Copy a on-disk zarr to in-memory compressed.
-        Recommended
+        Recommended.
         """
+        if compressors is None:
+            compressors = {}
+        if chunks is None:
+            chunks = {}
         if backend == "numpy":
             logger.warning("backend argument is deprecated!")
             store = None
@@ -278,11 +287,15 @@ class ReplayBuffer:
     def save_to_store(
         self,
         store,
-        chunks: dict[str, tuple] | None = dict(),
-        compressors: str | numcodecs.abc.Codec | dict = dict(),
+        chunks: dict[str, tuple] | None = None,
+        compressors: str | numcodecs.abc.Codec | dict = None,
         if_exists="replace",
         **kwargs,
     ):
+        if compressors is None:
+            compressors = {}
+        if chunks is None:
+            chunks = {}
         root = zarr.group(store)
         if self.backend == "zarr":
             # recompression free copy
@@ -337,11 +350,15 @@ class ReplayBuffer:
     def save_to_path(
         self,
         zarr_path,
-        chunks: dict[str, tuple] | None = dict(),
-        compressors: str | numcodecs.abc.Codec | dict = dict(),
+        chunks: dict[str, tuple] | None = None,
+        compressors: str | numcodecs.abc.Codec | dict = None,
         if_exists="replace",
         **kwargs,
     ):
+        if compressors is None:
+            compressors = {}
+        if chunks is None:
+            chunks = {}
         store = zarr.DirectoryStore(os.path.expanduser(zarr_path))
         return self.save_to_store(
             store, chunks=chunks, compressors=compressors, if_exists=if_exists, **kwargs
@@ -407,7 +424,7 @@ class ReplayBuffer:
 
     def update_meta(self, data):
         # sanitize data
-        np_data = dict()
+        np_data = {}
         for key, value in data.items():
             if isinstance(value, np.ndarray):
                 np_data[key] = value
@@ -488,7 +505,7 @@ class ReplayBuffer:
     def n_steps(self):
         # Handle zarr arrays which don't have len()
         episode_ends = self.episode_ends
-        if hasattr(episode_ends, 'shape'):
+        if hasattr(episode_ends, "shape"):
             # Zarr array or numpy array
             if episode_ends.shape[0] == 0:
                 return 0
@@ -501,7 +518,7 @@ class ReplayBuffer:
     def n_episodes(self):
         # Handle zarr arrays which don't have len()
         episode_ends = self.episode_ends
-        if hasattr(episode_ends, 'shape'):
+        if hasattr(episode_ends, "shape"):
             # Zarr array or numpy array
             return episode_ends.shape[0]
         else:
@@ -524,9 +541,13 @@ class ReplayBuffer:
     def add_episode(
         self,
         data: dict[str, np.ndarray],
-        chunks: dict[str, tuple] | None = dict(),
-        compressors: str | numcodecs.abc.Codec | dict = dict(),
+        chunks: dict[str, tuple] | None = None,
+        compressors: str | numcodecs.abc.Codec | dict = None,
     ):
+        if compressors is None:
+            compressors = {}
+        if chunks is None:
+            chunks = {}
         assert len(data) > 0
         is_zarr = self.backend == "zarr"
 
@@ -582,13 +603,12 @@ class ReplayBuffer:
         episode_ends[-1] = new_len
 
         # rechunk
-        if is_zarr:
-            if episode_ends.chunks[0] < episode_ends.shape[0]:
-                rechunk_recompress_array(
-                    self.meta,
-                    "episode_ends",
-                    chunk_length=int(episode_ends.shape[0] * 1.5),
-                )
+        if is_zarr and episode_ends.chunks[0] < episode_ends.shape[0]:
+            rechunk_recompress_array(
+                self.meta,
+                "episode_ends",
+                chunk_length=int(episode_ends.shape[0] * 1.5),
+            )
 
     def drop_episode(self):
         is_zarr = self.backend == "zarr"
@@ -597,7 +617,7 @@ class ReplayBuffer:
         start_idx = 0
         if len(episode_ends) > 1:
             start_idx = episode_ends[-2]
-        for key, value in self.data.items():
+        for _key, value in self.data.items():
             new_shape = (start_idx,) + value.shape[1:]
             if is_zarr:
                 value.resize(new_shape)
@@ -636,7 +656,7 @@ class ReplayBuffer:
     def get_steps_slice(self, start, stop, step=None, copy=False):
         _slice = slice(start, stop, step)
 
-        result = dict()
+        result = {}
         for key, value in self.data.items():
             x = value[_slice]
             if copy and isinstance(value, np.ndarray):
@@ -647,7 +667,7 @@ class ReplayBuffer:
     # =========== chunking =============
     def get_chunks(self) -> dict:
         assert self.backend == "zarr"
-        chunks = dict()
+        chunks = {}
         for key, value in self.data.items():
             chunks[key] = value.chunks
         return chunks
@@ -663,7 +683,7 @@ class ReplayBuffer:
 
     def get_compressors(self) -> dict:
         assert self.backend == "zarr"
-        compressors = dict()
+        compressors = {}
         for key, value in self.data.items():
             compressors[key] = value.compressor
         return compressors
@@ -706,7 +726,7 @@ def create_indices(
     pad_before = min(max(pad_before, 0), sequence_length - 1)
     pad_after = min(max(pad_after, 0), sequence_length - 1)
 
-    indices = list()
+    indices = []
     for i in range(len(episode_ends)):
         start_idx = 0  # episode start index
         if i > 0:
@@ -746,12 +766,14 @@ class SequenceSampler:
         pad_before: int = 0,
         pad_after: int = 0,
         keys=None,
-        key_first_k=dict(),
+        key_first_k=None,
         zero_padding: bool = False,
     ):
         """key_first_k: dict str: int
-        Only take first k data from these keys (to improve perf)
+        Only take first k data from these keys (to improve perf).
         """
+        if key_first_k is None:
+            key_first_k = {}
         super().__init__()
         assert sequence_length >= 1
 
@@ -787,7 +809,7 @@ class SequenceSampler:
         buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx = (
             self.indices[idx]
         )
-        result = dict()
+        result = {}
         for key in self.keys:
             input_arr = self.replay_buffer[key]
             # performance optimization, avoid small allocation if possible
@@ -838,7 +860,7 @@ class RotationTransformer:
         from_convention=None,
         to_convention=None,
     ):
-        """Valid representations
+        """Valid representations.
 
         Always use matrix as intermediate representation.
         """
@@ -850,8 +872,8 @@ class RotationTransformer:
         if to_rep == "euler_angles":
             assert to_convention is not None
 
-        forward_funcs = list()
-        inverse_funcs = list()
+        forward_funcs = []
+        inverse_funcs = []
 
         if from_rep != "matrix":
             funcs = [
@@ -911,7 +933,7 @@ class RotationTransformer:
 
 
 def empirical_cdf(sample):
-    """https://stackoverflow.com/a/33346366"""
+    """https://stackoverflow.com/a/33346366."""
     # find the unique values and their corresponding counts
     quantiles, counts = np.unique(sample, return_counts=True)
 
@@ -923,7 +945,7 @@ def empirical_cdf(sample):
 
 
 class CDFNormalizer1d:
-    """CDF normalizer for a single dimension"""
+    """CDF normalizer for a single dimension."""
 
     def __init__(self, X):
         assert X.ndim == 1
@@ -955,7 +977,7 @@ class CDFNormalizer1d:
 
 
 class CDFNormalizer:
-    """makes training data uniform (over each dimension) by transforming it with marginal CDFs"""
+    """makes training data uniform (over each dimension) by transforming it with marginal CDFs."""
 
     def __init__(self, X):
         self.X = X.astype(np.float32)
@@ -980,7 +1002,7 @@ class CDFNormalizer:
 
 
 class GaussianNormalizer:
-    """normalizes data to have zero mean and unit variance"""
+    """normalizes data to have zero mean and unit variance."""
 
     def __init__(self, X):
         self.X = X.astype(np.float32)
@@ -1037,7 +1059,7 @@ class MinMaxNormalizer:
 
 
 class EmptyNormalizer:
-    """do nothing and change nothing"""
+    """do nothing and change nothing."""
 
     def __init__(self):
         pass
@@ -1057,7 +1079,7 @@ class EmptyNormalizer:
 def dict_apply(
     x: dict[str, torch.Tensor], func: Callable[[torch.Tensor], torch.Tensor]
 ) -> dict[str, torch.Tensor]:
-    result = dict()
+    result = {}
     for key, value in x.items():
         if isinstance(value, dict):
             result[key] = dict_apply(value, func)
@@ -1070,11 +1092,9 @@ def dict_apply(
 
 def loop_dataloader(dl):
     while True:
-        for b in dl:
-            yield b
+        yield from dl
 
 
 def loop_two_dataloaders(dl1, dl2):
     while True:
-        for b1, b2 in zip(dl1, dl2, strict=False):
-            yield b1, b2
+        yield from zip(dl1, dl2, strict=False)

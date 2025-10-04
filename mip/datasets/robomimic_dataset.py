@@ -35,20 +35,26 @@ register_codecs()
 
 def make_dataset(task_config, mode="train"):
     # Check if we should download from HuggingFace
-    if hasattr(task_config, 'dataset_repo') and hasattr(task_config, 'dataset_filename'):
+    if hasattr(task_config, "dataset_repo") and hasattr(
+        task_config, "dataset_filename"
+    ):
         # Auto-download from HuggingFace
-        logger.info(f"Downloading dataset from {task_config.dataset_repo}/{task_config.dataset_filename}")
+        logger.info(
+            f"Downloading dataset from {task_config.dataset_repo}/{task_config.dataset_filename}"
+        )
         dataset_path = hf_hub_download(
             repo_id=task_config.dataset_repo,
             filename=task_config.dataset_filename,
-            repo_type="dataset"
+            repo_type="dataset",
         )
         logger.info(f"Downloaded dataset to: {dataset_path}")
-    elif hasattr(task_config, 'dataset_path'):
+    elif hasattr(task_config, "dataset_path"):
         # Use explicit path if provided
         dataset_path = os.path.expanduser(task_config.dataset_path)
     else:
-        raise ValueError("Either dataset_repo/dataset_filename or dataset_path must be provided")
+        raise ValueError(
+            "Either dataset_repo/dataset_filename or dataset_path must be provided"
+        )
 
     if task_config.env_name in ["can", "lift", "square", "tool_hang", "transport"]:
         if task_config.obs_type == "state":
@@ -331,12 +337,12 @@ class RobomimicDataset(BaseDataset):
                 import robomimic.utils.obs_utils as ObsUtils
 
                 # Initialize observation utilities with dummy spec
-                dummy_spec = dict(
-                    obs=dict(
-                        low_dim=["robot0_eef_pos"],
-                        rgb=[],
-                    ),
-                )
+                dummy_spec = {
+                    "obs": {
+                        "low_dim": ["robot0_eef_pos"],
+                        "rgb": [],
+                    },
+                }
                 ObsUtils.initialize_obs_utils_with_obs_specs(
                     obs_modality_specs=dummy_spec
                 )
@@ -358,7 +364,7 @@ class RobomimicDataset(BaseDataset):
                 if use_key_state_for_val:
                     states = demo["states"][:]
                     # Prepare initial state for environment reset
-                    initial_state = dict(states=states[0])
+                    initial_state = {"states": states[0]}
                     if is_robosuite_env:
                         initial_state["model"] = demo.attrs["model_file"]
                         initial_state["ep_meta"] = demo.attrs.get("ep_meta", None)
@@ -367,7 +373,7 @@ class RobomimicDataset(BaseDataset):
                     env.reset_to(initial_state)
 
                     # Evaluate key states in the trajectory
-                    for j, state in enumerate(states):
+                    for _j, state in enumerate(states):
                         env.reset_to({"states": state})
 
                         # Get distance between frame and stand (example evaluation metric)
@@ -521,8 +527,8 @@ class RobomimicImageDataset(BaseDataset):
             mode=mode,
         )
 
-        rgb_keys = list()
-        lowdim_keys = list()
+        rgb_keys = []
+        lowdim_keys = []
         obs_shape_meta = shape_meta["obs"]
         for key, attr in obs_shape_meta.items():
             type = attr.get("type", "low_dim")
@@ -531,7 +537,7 @@ class RobomimicImageDataset(BaseDataset):
             elif type == "low_dim":
                 lowdim_keys.append(key)
 
-        key_first_k = dict()
+        key_first_k = {}
         if n_obs_steps is not None:
             # only take first k obs from images
             for key in rgb_keys + lowdim_keys:
@@ -581,7 +587,7 @@ class RobomimicImageDataset(BaseDataset):
         # this slice does nothing (takes all)
         T_slice = slice(self.n_obs_steps)
 
-        obs_dict = dict()
+        obs_dict = {}
         for key in self.rgb_keys:
             # move channel last to channel first
             # T,H,W,C
@@ -660,7 +666,7 @@ def _convert_robomimic_to_replay(
     val_dataset_percentage=0.0,
     mode="train",
 ):
-    """Convert Robomimic dataset to ReplayBuffer
+    """Convert Robomimic dataset to ReplayBuffer.
 
     A ReplayBuffer is a `zarr.Group` or Dict[str, dict] that contains the following keys:
     - data: zarr.Group or Dict[str, dict]
@@ -747,8 +753,8 @@ def _convert_robomimic_to_replay(
         max_inflight_tasks = n_workers * 5
 
     # parse shape_meta
-    rgb_keys = list()
-    lowdim_keys = list()
+    rgb_keys = []
+    lowdim_keys = []
     # construct compressors and chunks
     obs_shape_meta = shape_meta["obs"]
     for key, attr in obs_shape_meta.items():
@@ -787,7 +793,7 @@ def _convert_robomimic_to_replay(
             # Use all data for training when no validation split
             demo_indices = list(range(total_demos))
 
-        episode_ends = list()
+        episode_ends = []
         prev_end = 0
         for i in demo_indices:
             demo = demos[f"demo_{i}"]
@@ -809,7 +815,7 @@ def _convert_robomimic_to_replay(
             data_key = "obs/" + key
             if key == "action":
                 data_key = "actions"
-            this_data = list()
+            this_data = []
             for i in demo_indices:
                 demo = demos[f"demo_{i}"]
                 this_data.append(demo[data_key][:].astype(np.float32))

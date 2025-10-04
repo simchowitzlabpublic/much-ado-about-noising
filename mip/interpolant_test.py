@@ -1,34 +1,33 @@
-"""
-Tests for the Interpolant class
-"""
+"""Tests for the Interpolant class."""
 
 import pytest
 import torch
+
 from mip.interpolant import Interpolant
 
 
 class TestInterpolant:
-    """Test suite for the Interpolant class"""
+    """Test suite for the Interpolant class."""
 
     def test_linear_interpolant_creation(self):
-        """Test creating a linear interpolant"""
+        """Test creating a linear interpolant."""
         linear_interp = Interpolant("linear")
         assert linear_interp is not None
 
     def test_trig_interpolant_creation(self):
-        """Test creating a trigonometric interpolant"""
+        """Test creating a trigonometric interpolant."""
         trig_interp = Interpolant("trig")
         assert trig_interp is not None
 
     def test_invalid_interpolant_type(self):
-        """Test that invalid interpolant type raises NotImplementedError"""
+        """Test that invalid interpolant type raises NotImplementedError."""
         with pytest.raises(
             NotImplementedError, match="Interpolant type 'invalid_type' not implemented"
         ):
             Interpolant("invalid_type")
 
     def test_linear_interpolation_single_point(self):
-        """Test linear interpolation at a single time point"""
+        """Test linear interpolation at a single time point."""
         linear_interp = Interpolant("linear")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])
@@ -40,7 +39,7 @@ class TestInterpolant:
         assert torch.allclose(result, expected)
 
     def test_linear_interpolation_endpoints(self):
-        """Test linear interpolation at t=0 and t=1"""
+        """Test linear interpolation at t=0 and t=1."""
         linear_interp = Interpolant("linear")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])
@@ -54,7 +53,7 @@ class TestInterpolant:
         assert torch.allclose(result_t1, x1)
 
     def test_trig_interpolation_single_point(self):
-        """Test trigonometric interpolation at a single time point"""
+        """Test trigonometric interpolation at a single time point."""
         trig_interp = Interpolant("trig")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])
@@ -69,7 +68,7 @@ class TestInterpolant:
         assert torch.allclose(result, expected)
 
     def test_trig_interpolation_endpoints(self):
-        """Test trigonometric interpolation at t=0 and t=1"""
+        """Test trigonometric interpolation at t=0 and t=1."""
         trig_interp = Interpolant("trig")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])
@@ -83,7 +82,7 @@ class TestInterpolant:
         assert torch.allclose(result_t1, x1)
 
     def test_linear_derivative_single_point(self):
-        """Test linear interpolant derivative at a single time point"""
+        """Test linear interpolant derivative at a single time point."""
         linear_interp = Interpolant("linear")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])
@@ -96,7 +95,7 @@ class TestInterpolant:
         assert torch.allclose(result, expected)
 
     def test_trig_derivative_single_point(self):
-        """Test trigonometric interpolant derivative at a single time point"""
+        """Test trigonometric interpolant derivative at a single time point."""
         trig_interp = Interpolant("trig")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])
@@ -112,7 +111,7 @@ class TestInterpolant:
         assert torch.allclose(result, expected)
 
     def test_batch_interpolation(self):
-        """Test interpolation with batch of data points"""
+        """Test interpolation with batch of data points."""
         linear_interp = Interpolant("linear")
         # Use batched x0 and x1 instead of batched t
         x0 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -125,7 +124,7 @@ class TestInterpolant:
         assert torch.allclose(result, expected)
 
     def test_linear_derivative_constant(self):
-        """Test that linear derivative is constant for all t"""
+        """Test that linear derivative is constant for all t."""
         linear_interp = Interpolant("linear")
         x0 = torch.tensor([1.0, 2.0, 3.0])
         x1 = torch.tensor([4.0, 5.0, 6.0])

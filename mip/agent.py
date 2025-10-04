@@ -136,6 +136,7 @@ class TrainingAgent:
         return act
 
     def save(self, path: str):
+        """Save agent models to path."""
         # save flow map, encoder, encoder_ema, flow_map_ema
         torch.save(
             {
@@ -148,6 +149,7 @@ class TrainingAgent:
         )
 
     def load(self, path: str):
+        """Load agent models from path."""
         # load flow map, encoder, encoder_ema, flow_map_ema
         state_dict = torch.load(path)
         self.flow_map.load_state_dict(state_dict["flow_map"])
@@ -156,12 +158,14 @@ class TrainingAgent:
         self.flow_map_ema.load_state_dict(state_dict["flow_map_ema"])
 
     def eval(self):
+        """Set all models to evaluation mode."""
         self.flow_map.eval()
         self.encoder.eval()
         self.flow_map_ema.eval()
         self.encoder_ema.eval()
 
     def train(self):
+        """Set all models to training mode."""
         self.flow_map.train()
         self.encoder.train()
         self.flow_map_ema.train()

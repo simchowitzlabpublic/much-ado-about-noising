@@ -52,7 +52,7 @@ def take_last_n(x, n):
 
 
 def dict_take_last_n(x, n):
-    result = dict()
+    result = {}
     for key, value in x.items():
         result[key] = take_last_n(value, n)
     return result
@@ -103,8 +103,8 @@ class MultiStepWrapper(gym.Wrapper):
         self.reward_agg_method = reward_agg_method
 
         self.obs = deque(maxlen=n_obs_steps + 1)
-        self.reward = list()
-        self.done = list()
+        self.reward = []
+        self.done = []
         self.info = defaultdict(lambda: deque(maxlen=n_obs_steps + 1))
 
     def seed(self, seed=None):
@@ -133,15 +133,15 @@ class MultiStepWrapper(gym.Wrapper):
             info = {}
 
         self.obs = deque([obs], maxlen=self.n_obs_steps + 1)
-        self.reward = list()
-        self.done = list()
+        self.reward = []
+        self.done = []
         self.info = defaultdict(lambda: deque(maxlen=self.n_obs_steps + 1))
 
         obs = self._get_obs(self.n_obs_steps)
         return obs, info
 
     def step(self, action):
-        """actions: (n_action_steps,) + action_shape"""
+        """actions: (n_action_steps,) + action_shape."""
         for act in action:
             if len(self.done) > 0 and self.done[-1]:
                 # termination
@@ -175,13 +175,13 @@ class MultiStepWrapper(gym.Wrapper):
         return observation, reward, terminated, truncated, info
 
     def _get_obs(self, n_steps=1):
-        """Output (n_steps,) + obs_shape"""
+        """Output (n_steps,) + obs_shape."""
         assert len(self.obs) > 0
         if isinstance(self.observation_space, spaces.Box):
             return stack_last_n_obs(self.obs, n_steps)
         elif isinstance(self.observation_space, spaces.Dict):
-            result = dict()
-            for key in self.observation_space.keys():
+            result = {}
+            for key in self.observation_space:
                 result[key] = stack_last_n_obs([obs[key] for obs in self.obs], n_steps)
             return result
         else:
@@ -202,7 +202,7 @@ class MultiStepWrapper(gym.Wrapper):
         return fn(self)
 
     def get_infos(self):
-        result = dict()
+        result = {}
         for k, v in self.info.items():
             result[k] = list(v)
         return result
@@ -222,12 +222,12 @@ class VideoWrapper(gym.Wrapper):
         self.render_kwargs = kwargs
         self.steps_per_render = steps_per_render
 
-        self.frames = list()
+        self.frames = []
         self.step_count = 0
 
     def reset(self, **kwargs):
         obs = super().reset(**kwargs)
-        self.frames = list()
+        self.frames = []
         self.step_count = 1
         if self.enabled:
             frame = self.env.render(mode=self.mode, **self.render_kwargs)
@@ -281,7 +281,7 @@ class VideoRecordingWrapper(gym.Wrapper):
             obs = result
             info = {}
 
-        self.frames = list()
+        self.frames = []
         self.step_count = 1
         self.video_recoder.stop()
         return obs, info
@@ -324,8 +324,8 @@ def get_accumulate_timestamp_idxs(
     global_idxs: the global index of each chosen timestamp
     next_global_idx: used for next call.
     """
-    local_idxs = list()
-    global_idxs = list()
+    local_idxs = []
+    global_idxs = []
     for local_idx, ts in enumerate(timestamps):
         # add eps * dt to timestamps so that when ts == start_time + k * dt
         # is always recorded as kth element (avoiding floating point errors)
@@ -352,7 +352,7 @@ class VideoRecorder:
         # options for codec
         **kwargs,
     ):
-        """input_pix_fmt: rgb24, bgr24 see https://github.com/PyAV-Org/PyAV/blob/bc4eedd5fc474e0f25b22102b2771fe5a42bb1c7/av/video/frame.pyx#L352"""
+        """input_pix_fmt: rgb24, bgr24 see https://github.com/PyAV-Org/PyAV/blob/bc4eedd5fc474e0f25b22102b2771fe5a42bb1c7/av/video/frame.pyx#L352."""
         self.fps = fps
         self.codec = codec
         self.input_pix_fmt = input_pix_fmt
@@ -438,7 +438,7 @@ class VideoRecorder:
         assert img.dtype == self.dtype
 
         frame = av.VideoFrame.from_ndarray(img, format=self.input_pix_fmt)
-        for i in range(n_repeats):
+        for _i in range(n_repeats):
             for packet in self.stream.encode(frame):
                 self.container.mux(packet)
 

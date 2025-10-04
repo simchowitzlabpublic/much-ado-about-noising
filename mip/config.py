@@ -58,9 +58,15 @@ class TaskConfig:
     env_type: str = "ph"
     abs_action: bool = True
     # Dataset configuration - either HuggingFace or local path
-    dataset_repo: str | None = None  # HuggingFace repository ID (e.g., "ChaoyiPan/mip-dataset")
-    dataset_filename: str | None = None  # Path within the repository (e.g., "robomimic/lift/ph/image.hdf5")
-    dataset_path: str | None = None  # Local path (deprecated, use dataset_repo/dataset_filename)
+    dataset_repo: str | None = (
+        None  # HuggingFace repository ID (e.g., "ChaoyiPan/mip-dataset")
+    )
+    dataset_filename: str | None = (
+        None  # Path within the repository (e.g., "robomimic/lift/ph/image.hdf5")
+    )
+    dataset_path: str | None = (
+        None  # Local path (deprecated, use dataset_repo/dataset_filename)
+    )
     max_episode_steps: int = 400
     obs_keys: list[str] = field(
         default_factory=lambda: [

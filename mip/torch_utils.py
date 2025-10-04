@@ -5,6 +5,7 @@ Ported from https://github.com/CleanDiffuserTeam/CleanDiffuser
 
 import collections
 import random
+
 import numpy as np
 import torch
 from loguru import logger
@@ -75,9 +76,7 @@ def recursive_dict_list_tuple_apply(x, type_func_dict):
 
     if isinstance(x, (dict, collections.OrderedDict)):
         new_x = (
-            collections.OrderedDict()
-            if isinstance(x, collections.OrderedDict)
-            else dict()
+            collections.OrderedDict() if isinstance(x, collections.OrderedDict) else {}
         )
         for k, v in x.items():
             new_x[k] = recursive_dict_list_tuple_apply(v, type_func_dict)
@@ -92,7 +91,7 @@ def recursive_dict_list_tuple_apply(x, type_func_dict):
             if isinstance(x, t):
                 return f(x)
         else:
-            raise NotImplementedError("Cannot handle data type %s" % str(type(x)))
+            raise NotImplementedError(f"Cannot handle data type {str(type(x))}")
 
 
 def map_tensor(x, func):
@@ -598,7 +597,7 @@ def join_dimensions(x, begin_axis, end_axis):
 
 
 def expand_at_single(x, size, dim):
-    """Expand a tensor at a single dimension @dim by @size
+    """Expand a tensor at a single dimension @dim by @size.
 
     Args:
         x (torch.Tensor): input tensor

@@ -1,12 +1,8 @@
-"""
-This file contains the scheduler for the training process.
+"""This file contains the scheduler for the training process.
 
 Author: Chaoyi Pan
 Date: 2025-04-17
 """
-
-import numpy as np
-from matplotlib import pyplot as plt
 
 
 class WarmupAnnealingScheduler:
@@ -18,12 +14,11 @@ class WarmupAnnealingScheduler:
         min_value=0.0,
         max_value=1.0,
     ):
-        """
-        Args:
-            max_steps: Total number of gradient steps in training
-            warmup_ratio: Ratio of steps to stay at 0 (e.g., 0.1 means first 10% of steps)
-            rampup_ratio: Ratio of steps to ramp up from 0 to max_value (e.g., 0.2 means 20% of steps)
-            max_value: The maximum value to reach
+        """Args:
+        max_steps: Total number of gradient steps in training
+        warmup_ratio: Ratio of steps to stay at 0 (e.g., 0.1 means first 10% of steps)
+        rampup_ratio: Ratio of steps to ramp up from 0 to max_value (e.g., 0.2 means 20% of steps)
+        max_value: The maximum value to reach.
         """
         self.max_steps = max_steps
         self.warmup_steps = int(max_steps * warmup_ratio)

@@ -10,8 +10,6 @@ from mip.interpolant import Interpolant
 from mip.losses import (
     ctm_loss,
     flow_loss,
-    get_loss_fn,
-    get_norm,
     lmd_loss,
     mip_loss,
     regression_loss,
@@ -319,9 +317,7 @@ class TestLossFunctions:
             obs = torch.randn(bs, To, obs_dim)
             delta_t = torch.rand(bs)
 
-            loss, aux = flow_loss(
-                config, flow_map, encoder, interp, act, obs, delta_t
-            )
+            loss, aux = flow_loss(config, flow_map, encoder, interp, act, obs, delta_t)
 
             assert isinstance(loss, torch.Tensor)
             assert loss.dim() == 0

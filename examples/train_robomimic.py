@@ -74,7 +74,7 @@ def train(config: Config, envs, dataset, agent, logger):
         if config.task.obs_type == "image":
             obs_batch = batch["obs"]
             obs = {}
-            for k in obs_batch.keys():
+            for k in obs_batch:
                 obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
                     config.optimization.device
                 )
@@ -102,10 +102,10 @@ def train(config: Config, envs, dataset, agent, logger):
                 "lr": lr_scheduler.get_last_lr()[0],
                 "delta_t": delta_t_scalar,
             }
-            for key in info.keys():
+            for key in info:
                 try:
                     metrics[key] = np.nanmean([info[key] for info in info_list])
-                except:
+                except Exception:
                     metrics[key] = np.nan
             logger.log(metrics, category="train")
             info_list = []
@@ -150,7 +150,7 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
     """Standalone inference function to evaluate a trained agent and optionally save a video.
 
     Args:
-        args: Arguments for inference
+        config: Configuration object containing evaluation parameters
         envs: Environment
         dataset: Dataset
         agent: Trained agent
@@ -165,7 +165,6 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
     episode_steps = []
     episode_success = []
     episode_kit_success = []
-    episode_block_push_success = []
 
     for i in range(config.log.eval_episodes // config.task.num_envs):
         ep_reward = [0.0] * config.task.num_envs
@@ -187,8 +186,10 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
             else:  # image-based observation
                 obs_raw = obs
                 obs = {}
-                for k in obs_raw.keys():
-                    obs[k] = obs_raw[k].astype(np.float32)  # (num_envs, obs_steps, obs_dim)
+                for k in obs_raw:
+                    obs[k] = obs_raw[k].astype(
+                        np.float32
+                    )  # (num_envs, obs_steps, obs_dim)
                     obs[k] = dataset.normalizer["obs"][k].normalize(obs[k])
                     obs[k] = torch.tensor(
                         obs[k], device=config.optimization.device, dtype=torch.float32
@@ -226,7 +227,7 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
             ]:
                 act = dataset.undo_transform_action(act)
             obs, reward, terminated, truncated, info = envs.step(act)
-            done = terminated | truncated
+            terminated | truncated
             ep_reward += reward
             t += config.task.act_steps
         success = [1.0 if s > 0 else 0.0 for s in ep_reward]
@@ -295,7 +296,7 @@ def main(config):
     if config.task.obs_type == "image":
         config.network.encoder_type = "image"
         # Use rgb_model from task config if available
-        if hasattr(config.task, 'rgb_model'):
+        if hasattr(config.task, "rgb_model"):
             config.network.rgb_model_name = config.task.rgb_model
     elif config.task.obs_type == "state":
         # Use identity or mlp encoder for state observations

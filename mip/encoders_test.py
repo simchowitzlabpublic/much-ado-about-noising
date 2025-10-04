@@ -19,15 +19,15 @@ from mip.networks.mlp import MLP, VanillaMLP
 
 
 class TestIdentityEncoder:
-    """Test suite for the IdentityEncoder class"""
+    """Test suite for the IdentityEncoder class."""
 
     def test_identity_encoder_creation(self):
-        """Test creating an IdentityEncoder"""
+        """Test creating an IdentityEncoder."""
         encoder = IdentityEncoder(dropout=0.25)
         assert encoder is not None
 
     def test_identity_encoder_forward_no_mask(self):
-        """Test IdentityEncoder forward pass without mask"""
+        """Test IdentityEncoder forward pass without mask."""
         encoder = IdentityEncoder(dropout=0.0)
         encoder.eval()
 
@@ -42,7 +42,7 @@ class TestIdentityEncoder:
         assert torch.allclose(output, condition)
 
     def test_identity_encoder_forward_with_mask(self):
-        """Test IdentityEncoder forward pass with mask"""
+        """Test IdentityEncoder forward pass with mask."""
         encoder = IdentityEncoder(dropout=0.0)
         encoder.eval()
 
@@ -58,7 +58,7 @@ class TestIdentityEncoder:
         assert torch.allclose(output, condition)
 
     def test_identity_encoder_dropout_training(self):
-        """Test that IdentityEncoder applies dropout during training"""
+        """Test that IdentityEncoder applies dropout during training."""
         encoder = IdentityEncoder(dropout=1.0)  # 100% dropout
         encoder.train()
 
@@ -74,7 +74,7 @@ class TestIdentityEncoder:
         assert torch.abs(output).sum() < torch.abs(condition).sum()
 
     def test_identity_encoder_2d_input(self):
-        """Test IdentityEncoder with 2D input"""
+        """Test IdentityEncoder with 2D input."""
         encoder = IdentityEncoder(dropout=0.0)
         encoder.eval()
 
@@ -90,10 +90,10 @@ class TestIdentityEncoder:
 
 
 class TestCropRandomizer:
-    """Test suite for the CropRandomizer class"""
+    """Test suite for the CropRandomizer class."""
 
     def test_crop_randomizer_creation(self):
-        """Test creating a CropRandomizer"""
+        """Test creating a CropRandomizer."""
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
             crop_height=216,
@@ -104,7 +104,7 @@ class TestCropRandomizer:
         assert randomizer is not None
 
     def test_crop_randomizer_output_shape_in(self):
-        """Test CropRandomizer output_shape_in method"""
+        """Test CropRandomizer output_shape_in method."""
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
             crop_height=216,
@@ -116,7 +116,7 @@ class TestCropRandomizer:
         assert output_shape == [3, 216, 216]
 
     def test_crop_randomizer_output_shape_in_with_pos_enc(self):
-        """Test CropRandomizer output_shape_in with position encoding"""
+        """Test CropRandomizer output_shape_in with position encoding."""
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
             crop_height=216,
@@ -128,7 +128,7 @@ class TestCropRandomizer:
         assert output_shape == [5, 216, 216]  # 3 + 2 for position encoding
 
     def test_crop_randomizer_forward_in_eval(self):
-        """Test CropRandomizer forward_in during evaluation (center crop)"""
+        """Test CropRandomizer forward_in during evaluation (center crop)."""
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
             crop_height=216,
@@ -147,7 +147,7 @@ class TestCropRandomizer:
         assert output.shape == (bs, 3, 216, 216)
 
     def test_crop_randomizer_forward_in_train(self):
-        """Test CropRandomizer forward_in during training (random crop)"""
+        """Test CropRandomizer forward_in during training (random crop)."""
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
             crop_height=216,
@@ -165,7 +165,7 @@ class TestCropRandomizer:
         assert output.shape == (bs, 3, 216, 216)
 
     def test_crop_randomizer_forward_out(self):
-        """Test CropRandomizer forward_out"""
+        """Test CropRandomizer forward_out."""
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
             crop_height=216,
@@ -183,7 +183,7 @@ class TestCropRandomizer:
         assert output.shape == (bs, 512)
 
     def test_crop_randomizer_multiple_crops(self):
-        """Test CropRandomizer with multiple crops"""
+        """Test CropRandomizer with multiple crops."""
         num_crops = 4
         randomizer = CropRandomizer(
             input_shape=(3, 240, 240),
@@ -204,10 +204,10 @@ class TestCropRandomizer:
 
 
 class TestMultiImageObsEncoder:
-    """Test suite for the MultiImageObsEncoder class"""
+    """Test suite for the MultiImageObsEncoder class."""
 
     def test_multi_image_encoder_creation_rgb_only(self):
-        """Test creating a MultiImageObsEncoder with RGB input only"""
+        """Test creating a MultiImageObsEncoder with RGB input only."""
         shape_meta = {"obs": {"rgb": {"shape": [3, 224, 224], "type": "rgb"}}}
         encoder = MultiImageObsEncoder(
             shape_meta=shape_meta,
@@ -217,7 +217,7 @@ class TestMultiImageObsEncoder:
         assert encoder is not None
 
     def test_multi_image_encoder_creation_mixed_inputs(self):
-        """Test creating a MultiImageObsEncoder with mixed RGB and low-dim inputs"""
+        """Test creating a MultiImageObsEncoder with mixed RGB and low-dim inputs."""
         shape_meta = {
             "obs": {
                 "rgb": {"shape": [3, 224, 224], "type": "rgb"},
@@ -232,7 +232,7 @@ class TestMultiImageObsEncoder:
         assert encoder is not None
 
     def test_multi_image_encoder_forward_rgb_only(self):
-        """Test MultiImageObsEncoder forward pass with RGB input only"""
+        """Test MultiImageObsEncoder forward pass with RGB input only."""
         shape_meta = {"obs": {"rgb": {"shape": [3, 224, 224], "type": "rgb"}}}
         encoder = MultiImageObsEncoder(
             shape_meta=shape_meta,
@@ -251,7 +251,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, 256)
 
     def test_multi_image_encoder_forward_mixed_inputs(self):
-        """Test MultiImageObsEncoder forward pass with mixed inputs"""
+        """Test MultiImageObsEncoder forward pass with mixed inputs."""
         shape_meta = {
             "obs": {
                 "rgb": {"shape": [3, 224, 224], "type": "rgb"},
@@ -278,7 +278,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, 256)
 
     def test_multi_image_encoder_with_crop(self):
-        """Test MultiImageObsEncoder with cropping"""
+        """Test MultiImageObsEncoder with cropping."""
         shape_meta = {"obs": {"rgb": {"shape": [3, 240, 240], "type": "rgb"}}}
         encoder = MultiImageObsEncoder(
             shape_meta=shape_meta,
@@ -299,7 +299,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, 256)
 
     def test_multi_image_encoder_with_resize(self):
-        """Test MultiImageObsEncoder with resizing"""
+        """Test MultiImageObsEncoder with resizing."""
         shape_meta = {"obs": {"rgb": {"shape": [3, 128, 128], "type": "rgb"}}}
         encoder = MultiImageObsEncoder(
             shape_meta=shape_meta,
@@ -319,7 +319,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, 256)
 
     def test_multi_image_encoder_multiple_rgb_inputs(self):
-        """Test MultiImageObsEncoder with multiple RGB inputs"""
+        """Test MultiImageObsEncoder with multiple RGB inputs."""
         shape_meta = {
             "obs": {
                 "rgb1": {"shape": [3, 224, 224], "type": "rgb"},
@@ -347,7 +347,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, 256)
 
     def test_multi_image_encoder_shared_rgb_model(self):
-        """Test MultiImageObsEncoder with shared RGB model"""
+        """Test MultiImageObsEncoder with shared RGB model."""
         shape_meta = {
             "obs": {
                 "rgb1": {"shape": [3, 224, 224], "type": "rgb"},
@@ -375,7 +375,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, 256)
 
     def test_multi_image_encoder_with_sequence(self):
-        """Test MultiImageObsEncoder with sequence input"""
+        """Test MultiImageObsEncoder with sequence input."""
         shape_meta = {"obs": {"rgb": {"shape": [3, 224, 224], "type": "rgb"}}}
         encoder = MultiImageObsEncoder(
             shape_meta=shape_meta,
@@ -396,7 +396,7 @@ class TestMultiImageObsEncoder:
         assert output.shape == (bs, seq_len * 256)
 
     def test_multi_image_encoder_with_sequence_keep_dims(self):
-        """Test MultiImageObsEncoder with sequence input and keep_horizon_dims"""
+        """Test MultiImageObsEncoder with sequence input and keep_horizon_dims."""
         shape_meta = {"obs": {"rgb": {"shape": [3, 224, 224], "type": "rgb"}}}
         encoder = MultiImageObsEncoder(
             shape_meta=shape_meta,
@@ -418,10 +418,10 @@ class TestMultiImageObsEncoder:
 
 
 class TestCropFunctions:
-    """Test suite for crop utility functions"""
+    """Test suite for crop utility functions."""
 
     def test_crop_image_from_indices(self):
-        """Test crop_image_from_indices function"""
+        """Test crop_image_from_indices function."""
         bs = 4
         images = torch.randn(bs, 3, 100, 100)
         crop_indices = torch.zeros(bs, 2).long()  # Top-left corner
@@ -433,7 +433,7 @@ class TestCropFunctions:
         assert crops.shape == (bs, 3, 50, 50)
 
     def test_crop_image_from_indices_multiple_crops(self):
-        """Test crop_image_from_indices with multiple crops per image"""
+        """Test crop_image_from_indices with multiple crops per image."""
         bs = 2
         num_crops = 3
         images = torch.randn(bs, 3, 100, 100)
@@ -446,7 +446,7 @@ class TestCropFunctions:
         assert crops.shape == (bs, num_crops, 3, 50, 50)
 
     def test_sample_random_image_crops(self):
-        """Test sample_random_image_crops function"""
+        """Test sample_random_image_crops function."""
         bs = 4
         images = torch.randn(bs, 3, 100, 100)
         crop_height = 50
@@ -461,7 +461,7 @@ class TestCropFunctions:
         assert crop_inds.shape == (bs, num_crops, 2)
 
     def test_sample_random_image_crops_with_pos_enc(self):
-        """Test sample_random_image_crops with position encoding"""
+        """Test sample_random_image_crops with position encoding."""
         bs = 4
         images = torch.randn(bs, 3, 100, 100)
         crop_height = 50
@@ -477,32 +477,32 @@ class TestCropFunctions:
 
 
 class TestGetResnet:
-    """Test suite for get_resnet function"""
+    """Test suite for get_resnet function."""
 
     def test_get_resnet18(self):
-        """Test getting resnet18"""
+        """Test getting resnet18."""
         model = get_resnet("resnet18")
         assert model is not None
         assert isinstance(model.fc, nn.Identity)
 
     def test_get_resnet34(self):
-        """Test getting resnet34"""
+        """Test getting resnet34."""
         model = get_resnet("resnet34")
         assert model is not None
         assert isinstance(model.fc, nn.Identity)
 
     def test_get_resnet50(self):
-        """Test getting resnet50"""
+        """Test getting resnet50."""
         model = get_resnet("resnet50")
         assert model is not None
         assert isinstance(model.fc, nn.Identity)
 
 
 class TestEncoderIntegration:
-    """Test integration of encoders with the MLP network"""
+    """Test integration of encoders with the MLP network."""
 
     def test_identity_encoder_with_state_obs(self):
-        """Test IdentityEncoder output dimension for state observations"""
+        """Test IdentityEncoder output dimension for state observations."""
         # For state observations, obs_dim should match the actual state dimension
         encoder = IdentityEncoder(dropout=0.0)
         encoder.eval()
@@ -521,7 +521,7 @@ class TestEncoderIntegration:
         assert output.shape == (bs, To, obs_dim)
 
     def test_multi_image_encoder_output_dimension(self):
-        """Test MultiImageObsEncoder output dimension for image observations"""
+        """Test MultiImageObsEncoder output dimension for image observations."""
         # For image observations, output should be emb_dim (256 by default)
         shape_meta = {"obs": {"rgb": {"shape": [3, 224, 224], "type": "rgb"}}}
         emb_dim = 256  # This is the key dimension for MLP integration
@@ -546,7 +546,7 @@ class TestEncoderIntegration:
         assert output.shape == (bs, To, emb_dim)
 
     def test_encoder_output_compatibility_with_mlp(self):
-        """Test that encoder output is compatible with MLP input expectations"""
+        """Test that encoder output is compatible with MLP input expectations."""
         # Test state encoder
         state_encoder = IdentityEncoder(dropout=0.0)
         state_encoder.eval()
@@ -936,9 +936,9 @@ class TestEncoderMLPIntegration:
 
         # Test
         bs = 4
-        actions = torch.randn(bs, Ta, act_dim)
-        s = torch.randn(bs)
-        t = torch.randn(bs)
+        torch.randn(bs, Ta, act_dim)
+        torch.randn(bs)
+        torch.randn(bs)
         obs_dict = {"rgb": torch.randn(bs, To, 3, 224, 224)}
 
         with torch.no_grad():

@@ -16,10 +16,8 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import h5py
-from datasets import load_dataset
 from huggingface_hub import HfApi, hf_hub_download, upload_file
 
 # HuggingFace repo for processed datasets
@@ -65,7 +63,7 @@ def process_to_image_dataset(
     task: str = "lift",
     source: str = "ph",
     n_demos: int = 50,
-    camera_names: Optional[list] = None,
+    camera_names: list | None = None,
     camera_height: int = 84,
     camera_width: int = 84,
 ) -> str:
@@ -110,10 +108,12 @@ def process_to_image_dataset(
 
     # Build command
     cmd = [
-        "python", "-m", "robomimic.scripts.dataset_states_to_obs",
+        "python",
+        "-m",
+        "robomimic.scripts.dataset_states_to_obs",
         f"--dataset={temp_demo_path}",
         f"--output_name={output_name}",
-        f"--done_mode=2",
+        "--done_mode=2",
         f"--camera_height={camera_height}",
         f"--camera_width={camera_width}",
         f"--n={n_demos}",
@@ -144,7 +144,7 @@ def upload_to_hub(
     task: str,
     source: str,
     dataset_type: str,
-    n_demos: Optional[int] = None,
+    n_demos: int | None = None,
     repo_id: str = PROCESSED_REPO_ID,
 ) -> str:
     """Upload processed dataset to HuggingFace Hub.
@@ -172,8 +172,8 @@ def upload_to_hub(
         # Try to get user info to check authentication
         api.whoami()
     except Exception:
-        print(f"⚠️ Not authenticated with HuggingFace Hub. Skipping upload.")
-        print(f"   To enable uploading, run: huggingface-cli login")
+        print("⚠️ Not authenticated with HuggingFace Hub. Skipping upload.")
+        print("   To enable uploading, run: huggingface-cli login")
         return repo_path
 
     # Create repo if it doesn't exist
@@ -181,7 +181,7 @@ def upload_to_hub(
         api.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=True)
     except Exception as e:
         print(f"⚠️ Could not create/access repo: {e}")
-        print(f"   Dataset saved locally but not uploaded.")
+        print("   Dataset saved locally but not uploaded.")
         return repo_path
 
     print(f"Uploading to {repo_id}/{repo_path}...")
@@ -197,7 +197,7 @@ def upload_to_hub(
         return repo_path
     except Exception as e:
         print(f"⚠️ Upload failed: {e}")
-        print(f"   Dataset saved locally but not uploaded.")
+        print("   Dataset saved locally but not uploaded.")
         return repo_path
 
 
@@ -244,7 +244,7 @@ def get_or_create_image_dataset(
             print(f"✓ Downloaded and cached dataset: {local_cache_path}")
             return str(local_cache_path)
         except Exception:
-            print(f"Dataset not found in Hub, will process locally")
+            print("Dataset not found in Hub, will process locally")
 
     # Download demo dataset
     demo_path = download_original_dataset(task=task, source=source, dataset_type="demo")
@@ -302,7 +302,9 @@ def get_or_upload_lowdim_dataset(
         print("Dataset not in our repo, downloading from original and uploading...")
 
     # Download from original repo
-    local_path = download_original_dataset(task=task, source=source, dataset_type="low_dim")
+    local_path = download_original_dataset(
+        task=task, source=source, dataset_type="low_dim"
+    )
 
     # Upload to our repo
     upload_to_hub(
@@ -324,25 +326,25 @@ def validate_dataset(hdf5_path: str) -> dict:
     Returns:
         Dictionary with dataset info
     """
-    with h5py.File(hdf5_path, 'r') as f:
+    with h5py.File(hdf5_path, "r") as f:
         info = {
             "path": hdf5_path,
             "keys": list(f.keys()),
-            "n_demos": len(f['data']) if 'data' in f else 0,
+            "n_demos": len(f["data"]) if "data" in f else 0,
         }
 
         if info["n_demos"] > 0:
-            demo_0 = f['data']['demo_0']
+            demo_0 = f["data"]["demo_0"]
             info["demo_keys"] = list(demo_0.keys())
 
-            if 'obs' in demo_0:
-                info["obs_keys"] = list(demo_0['obs'].keys())
-                info["image_keys"] = [k for k in info["obs_keys"] if 'image' in k]
+            if "obs" in demo_0:
+                info["obs_keys"] = list(demo_0["obs"].keys())
+                info["image_keys"] = [k for k in info["obs_keys"] if "image" in k]
 
                 # Get shapes
                 info["obs_shapes"] = {}
                 for key in info["obs_keys"]:
-                    info["obs_shapes"][key] = demo_0['obs'][key].shape
+                    info["obs_shapes"][key] = demo_0["obs"][key].shape
 
         return info
 
@@ -363,7 +365,7 @@ def main():
     )
 
     image_info = validate_dataset(image_path)
-    print(f"✓ Image dataset ready:")
+    print("✓ Image dataset ready:")
     print(f"  - Path: {image_info['path']}")
     print(f"  - Demos: {image_info['n_demos']}")
     print(f"  - Image keys: {image_info.get('image_keys', [])}")
@@ -376,7 +378,7 @@ def main():
     )
 
     lowdim_info = validate_dataset(lowdim_path)
-    print(f"✓ Low-dim dataset ready:")
+    print("✓ Low-dim dataset ready:")
     print(f"  - Path: {lowdim_info['path']}")
     print(f"  - Demos: {lowdim_info['n_demos']}")
     print(f"  - Obs keys: {lowdim_info.get('obs_keys', [])}")

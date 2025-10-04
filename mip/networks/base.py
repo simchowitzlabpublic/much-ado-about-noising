@@ -1,8 +1,5 @@
-"""
-Base network class.
-"""
+"""Base network class."""
 
-import torch
 import torch.nn as nn
 
 

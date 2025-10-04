@@ -8,22 +8,24 @@ class RobomimicLowdimWrapper(gym.Env):
     def __init__(
         self,
         env: EnvRobosuite,
-        obs_keys: list[str] = [
-            "object",
-            "robot0_eef_pos",
-            "robot0_eef_quat",
-            "robot0_gripper_qpos",
-        ],
+        obs_keys: list[str] = None,
         init_state: np.ndarray | None = None,
         render_hw=(256, 256),
         render_camera_name="agentview",
     ):
+        if obs_keys is None:
+            obs_keys = [
+                "object",
+                "robot0_eef_pos",
+                "robot0_eef_quat",
+                "robot0_gripper_qpos",
+            ]
         self.env = env
         self.obs_keys = obs_keys
         self.init_state = init_state
         self.render_hw = render_hw
         self.render_camera_name = render_camera_name
-        self.seed_state_map = dict()
+        self.seed_state_map = {}
         self._seed = None
 
         # setup spaces

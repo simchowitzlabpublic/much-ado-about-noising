@@ -1,4 +1,4 @@
-"""Simple tests for robomimic_env.py
+"""Simple tests for robomimic_env.py.
 
 Author: Chaoyi Pan
 Date: 2025-10-03
@@ -90,7 +90,7 @@ class TestMakeEnv:
 
         try:
             make_env(task_config, idx=0, render=False)
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as e:
             assert "not supported" in str(e)
 
@@ -194,7 +194,7 @@ class TestMakeVecEnv:
 
         try:
             make_vec_env(task_config)
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as e:
             assert "not supported" in str(e)
 

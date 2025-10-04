@@ -21,49 +21,49 @@ from mip.samplers import (
 
 
 class TestGetSampler:
-    """Test suite for get_sampler function"""
+    """Test suite for get_sampler function."""
 
     def test_get_sampler_flow(self):
-        """Test get_sampler returns ode_sampler for 'flow' loss type"""
+        """Test get_sampler returns ode_sampler for 'flow' loss type."""
         sampler = get_sampler("flow")
         assert sampler == ode_sampler
 
     def test_get_sampler_regression(self):
-        """Test get_sampler returns regression_sampler for 'regression' loss type"""
+        """Test get_sampler returns regression_sampler for 'regression' loss type."""
         sampler = get_sampler("regression")
         assert sampler == regression_sampler
 
     def test_get_sampler_tsd(self):
-        """Test get_sampler returns mip_sampler for 'tsd' loss type"""
+        """Test get_sampler returns mip_sampler for 'tsd' loss type."""
         sampler = get_sampler("tsd")
         assert sampler == mip_sampler
 
     def test_get_sampler_mip(self):
-        """Test get_sampler returns mip_sampler for 'mip' loss type"""
+        """Test get_sampler returns mip_sampler for 'mip' loss type."""
         sampler = get_sampler("mip")
         assert sampler == mip_sampler
 
     def test_get_sampler_lmd(self):
-        """Test get_sampler returns flow_map_sampler for 'lmd' loss type"""
+        """Test get_sampler returns flow_map_sampler for 'lmd' loss type."""
         sampler = get_sampler("lmd")
         assert sampler == flow_map_sampler
 
     def test_get_sampler_ctm(self):
-        """Test get_sampler returns flow_map_sampler for 'ctm' loss type"""
+        """Test get_sampler returns flow_map_sampler for 'ctm' loss type."""
         sampler = get_sampler("ctm")
         assert sampler == flow_map_sampler
 
     def test_get_sampler_invalid(self):
-        """Test get_sampler raises NotImplementedError for invalid loss type"""
+        """Test get_sampler raises NotImplementedError for invalid loss type."""
         with pytest.raises(NotImplementedError):
             get_sampler("invalid_loss_type")
 
 
 class TestODESampler:
-    """Test suite for ode_sampler function"""
+    """Test suite for ode_sampler function."""
 
     def test_ode_sampler_output_shape(self):
-        """Test ode_sampler returns correct output shape"""
+        """Test ode_sampler returns correct output shape."""
         # Setup
         act_dim = 2
         Ta = 4
@@ -96,7 +96,7 @@ class TestODESampler:
         assert act.shape == act_0.shape
 
     def test_ode_sampler_zero_mode(self):
-        """Test ode_sampler with zero initialization mode"""
+        """Test ode_sampler with zero initialization mode."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -125,7 +125,7 @@ class TestODESampler:
         assert act.shape == act_0.shape
 
     def test_ode_sampler_stochastic_mode(self):
-        """Test ode_sampler with stochastic initialization mode"""
+        """Test ode_sampler with stochastic initialization mode."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -155,7 +155,7 @@ class TestODESampler:
         assert act.shape == act_0.shape
 
     def test_ode_sampler_single_step(self):
-        """Test ode_sampler with single step"""
+        """Test ode_sampler with single step."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -182,7 +182,7 @@ class TestODESampler:
         assert act.shape == act_0.shape
 
     def test_ode_sampler_multiple_steps(self):
-        """Test ode_sampler with multiple steps"""
+        """Test ode_sampler with multiple steps."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -211,10 +211,10 @@ class TestODESampler:
 
 
 class TestFlowMapSampler:
-    """Test suite for flow_map_sampler function"""
+    """Test suite for flow_map_sampler function."""
 
     def test_flow_map_sampler_output_shape(self):
-        """Test flow_map_sampler returns correct output shape"""
+        """Test flow_map_sampler returns correct output shape."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -242,7 +242,7 @@ class TestFlowMapSampler:
         assert act.shape == act_0.shape
 
     def test_flow_map_sampler_zero_mode(self):
-        """Test flow_map_sampler with zero initialization mode"""
+        """Test flow_map_sampler with zero initialization mode."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -269,7 +269,7 @@ class TestFlowMapSampler:
         assert act.shape == act_0.shape
 
     def test_flow_map_sampler_stochastic_mode(self):
-        """Test flow_map_sampler with stochastic initialization mode"""
+        """Test flow_map_sampler with stochastic initialization mode."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -297,7 +297,7 @@ class TestFlowMapSampler:
         assert act.shape == act_0.shape
 
     def test_flow_map_sampler_single_step(self):
-        """Test flow_map_sampler with single step"""
+        """Test flow_map_sampler with single step."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -325,10 +325,10 @@ class TestFlowMapSampler:
 
 
 class TestRegressionSampler:
-    """Test suite for regression_sampler function"""
+    """Test suite for regression_sampler function."""
 
     def test_regression_sampler_output_shape(self):
-        """Test regression_sampler returns correct output shape"""
+        """Test regression_sampler returns correct output shape."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -356,7 +356,7 @@ class TestRegressionSampler:
         assert act.shape == act_0.shape
 
     def test_regression_sampler_with_vanilla_mlp(self):
-        """Test regression_sampler with VanillaMLP"""
+        """Test regression_sampler with VanillaMLP."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -384,10 +384,10 @@ class TestRegressionSampler:
 
 
 class TestMIPSampler:
-    """Test suite for mip_sampler function"""
+    """Test suite for mip_sampler function."""
 
     def test_mip_sampler_output_shape(self):
-        """Test mip_sampler returns correct output shape"""
+        """Test mip_sampler returns correct output shape."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -415,7 +415,7 @@ class TestMIPSampler:
         assert act.shape == act_0.shape
 
     def test_mip_sampler_different_t_values(self):
-        """Test mip_sampler with different t_two_step values"""
+        """Test mip_sampler with different t_two_step values."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -443,7 +443,7 @@ class TestMIPSampler:
             assert act.shape == act_0.shape
 
     def test_mip_sampler_with_vanilla_mlp(self):
-        """Test mip_sampler with VanillaMLP"""
+        """Test mip_sampler with VanillaMLP."""
         act_dim = 2
         Ta = 4
         obs_dim = 2

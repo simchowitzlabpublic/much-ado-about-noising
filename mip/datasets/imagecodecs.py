@@ -43,7 +43,7 @@ from numcodecs.registry import get_codec, register_codec
 
 def protective_squeeze(x: numpy.ndarray):
     """Squeeze dim only if it's not the last dim.
-    Image dim expected to be *, H, W, C
+    Image dim expected to be *, H, W, C.
     """
     img_shape = x.shape[-3:]
     if len(x.shape) > 3:
@@ -595,7 +595,7 @@ class Jpeg(Codec):
 
     def get_config(self):
         """Return dictionary holding configuration parameters."""
-        config = dict(id=self.codec_id)
+        config = {"id": self.codec_id}
         for key in self.__dict__:
             if not key.startswith("_"):
                 value = getattr(self, key)

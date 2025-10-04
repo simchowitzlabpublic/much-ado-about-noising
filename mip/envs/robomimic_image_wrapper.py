@@ -1,10 +1,9 @@
-"""Image wrapper for Robomimic environments. Ported from https://github.com/CleanDiffuserTeam/CleanDiffuser"""
+"""Image wrapper for Robomimic environments. Ported from https://github.com/CleanDiffuserTeam/CleanDiffuser."""
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from loguru import logger
-from omegaconf import OmegaConf
 from robomimic.envs.env_robosuite import EnvRobosuite
 
 
@@ -19,7 +18,7 @@ class RobomimicImageWrapper(gym.Env):
         self.env = env
         self.render_obs_key = render_obs_key
         self.init_state = init_state
-        self.seed_state_map = dict()
+        self.seed_state_map = {}
         self._seed = None
         self.shape_meta = shape_meta
         self.render_cache = None
@@ -62,39 +61,46 @@ class RobomimicImageWrapper(gym.Env):
         render_key = self.render_obs_key
         if render_key not in raw_obs:
             # Try without _image suffix
-            if render_key.endswith('_image'):
-                base_key = render_key.replace('_image', '')
+            if render_key.endswith("_image"):
+                base_key = render_key.replace("_image", "")
                 if base_key in raw_obs:
                     render_key = base_key
                 else:
-                    logger.error(f"ERROR: Neither '{render_key}' nor '{base_key}' found in raw_obs keys: {list(raw_obs.keys())}")
+                    logger.error(
+                        f"ERROR: Neither '{render_key}' nor '{base_key}' found in raw_obs keys: {list(raw_obs.keys())}"
+                    )
                     # Use first image key as fallback
-                    for key in raw_obs.keys():
-                        if 'image' in key.lower() or key in ['agentview', 'robot0_eye_in_hand']:
+                    for key in raw_obs:
+                        if "image" in key.lower() or key in [
+                            "agentview",
+                            "robot0_eye_in_hand",
+                        ]:
                             render_key = key
                             logger.warning(f"Using fallback render key: {render_key}")
                             break
         self.render_cache = raw_obs[render_key]
 
-        obs = dict()
+        obs = {}
         # Debug: print available keys
         # print(f"Available keys in raw_obs: {raw_obs.keys()}")
         # print(f"Expected keys in observation_space: {self.observation_space.keys()}")
 
-        for key in self.observation_space.keys():
+        for key in self.observation_space:
             # Map dataset keys to environment keys
             # Dataset has keys like 'robot0_eye_in_hand_image' but env provides 'robot0_eye_in_hand'
             # Also 'agentview_image' -> 'agentview'
             env_key = key
-            if key.endswith('_image'):
+            if key.endswith("_image"):
                 # Try removing '_image' suffix for camera observations
-                base_key = key.replace('_image', '')
+                base_key = key.replace("_image", "")
                 if base_key in raw_obs:
                     env_key = base_key
 
             # Check if this key exists in raw_obs
             if env_key not in raw_obs:
-                logger.warning(f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}")
+                logger.warning(
+                    f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}"
+                )
                 # Skip this key if not found
                 continue
             else:

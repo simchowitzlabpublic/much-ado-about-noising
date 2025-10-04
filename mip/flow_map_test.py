@@ -7,10 +7,10 @@ from mip.networks.mlp import MLP, VanillaMLP
 
 
 class TestFlowMap:
-    """Test suite for the FlowMap class"""
+    """Test suite for the FlowMap class."""
 
     def test_flowmap_creation(self):
-        """Test creating a FlowMap with MLP network"""
+        """Test creating a FlowMap with MLP network."""
         mlp = MLP(
             act_dim=2,
             Ta=4,
@@ -24,7 +24,7 @@ class TestFlowMap:
         assert flow_map is not None
 
     def test_flowmap_forward(self):
-        """Test FlowMap forward pass"""
+        """Test FlowMap forward pass."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -52,7 +52,7 @@ class TestFlowMap:
         assert Xst.shape == (bs, Ta, act_dim)
 
     def test_flowmap_forward_single(self):
-        """Test FlowMap forward_single method"""
+        """Test FlowMap forward_single method."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -79,7 +79,7 @@ class TestFlowMap:
         assert x.shape == (Ta, act_dim)
 
     def test_flowmap_jvp_t_single(self):
-        """Test FlowMap jvp_t_single method"""
+        """Test FlowMap jvp_t_single method."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -108,7 +108,7 @@ class TestFlowMap:
         assert dx_dt.shape == (Ta, act_dim)
 
     def test_flowmap_jvp_t(self):
-        """Test FlowMap jvp_t method (batched version)"""
+        """Test FlowMap jvp_t method (batched version)."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -138,7 +138,7 @@ class TestFlowMap:
         assert dx_dt.shape == (bs, Ta, act_dim)
 
     def test_flowmap_get_velocity(self):
-        """Test FlowMap get_velocity method"""
+        """Test FlowMap get_velocity method."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -165,7 +165,7 @@ class TestFlowMap:
         assert velocity.shape == (bs, Ta, act_dim)
 
     def test_flowmap_with_vanilla_mlp(self):
-        """Test FlowMap with VanillaMLP network"""
+        """Test FlowMap with VanillaMLP network."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -192,7 +192,7 @@ class TestFlowMap:
         assert Xst.shape == (bs, Ta, act_dim)
 
     def test_flowmap_gradient_flow(self):
-        """Test that gradients flow through FlowMap"""
+        """Test that gradients flow through FlowMap."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -223,7 +223,7 @@ class TestFlowMap:
         assert xs.grad.shape == xs.shape
 
     def test_flowmap_time_evolution(self):
-        """Test that FlowMap evolves states correctly with time"""
+        """Test that FlowMap evolves states correctly with time."""
         act_dim = 2
         Ta = 4
         obs_dim = 2

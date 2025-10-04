@@ -45,7 +45,7 @@ def flow_loss(
     obs: torch.Tensor,
     delta_t: torch.Tensor,
 ) -> float:
-    """Flow model loss, matching the velocity field
+    """Flow model loss, matching the velocity field.
 
     Args:
         flow_map (FlowMap): the flow map

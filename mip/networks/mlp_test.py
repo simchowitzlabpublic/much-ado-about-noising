@@ -1,18 +1,15 @@
-"""
-Tests for MLP networks
-"""
+"""Tests for MLP networks."""
 
-import pytest
 import torch
 
 from mip.networks.mlp import MLP, VanillaMLP
 
 
 class TestVanillaMLP:
-    """Test suite for the VanillaMLP class"""
+    """Test suite for the VanillaMLP class."""
 
     def test_vanilla_mlp_creation(self):
-        """Test creating a VanillaMLP network"""
+        """Test creating a VanillaMLP network."""
         mlp = VanillaMLP(
             act_dim=2,
             Ta=4,
@@ -25,7 +22,7 @@ class TestVanillaMLP:
         assert mlp is not None
 
     def test_vanilla_mlp_output_shapes(self):
-        """Test VanillaMLP output shapes"""
+        """Test VanillaMLP output shapes."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -53,7 +50,7 @@ class TestVanillaMLP:
         assert scalar_out.shape == (bs, 1)
 
     def test_vanilla_mlp_time_dependency(self):
-        """Test that VanillaMLP produces different outputs for different time values"""
+        """Test that VanillaMLP produces different outputs for different time values."""
         act_dim = 2
         Ta = 4
         obs_dim = 2
@@ -91,10 +88,10 @@ class TestVanillaMLP:
 
 
 class TestMLP:
-    """Test suite for the MLP class"""
+    """Test suite for the MLP class."""
 
     def test_mlp_creation(self):
-        """Test creating an MLP network"""
+        """Test creating an MLP network."""
         mlp = MLP(
             act_dim=7,
             Ta=8,
@@ -110,7 +107,7 @@ class TestMLP:
         assert mlp is not None
 
     def test_mlp_output_shapes(self):
-        """Test MLP output shapes"""
+        """Test MLP output shapes."""
         act_dim = 7
         Ta = 8
         obs_dim = 20
@@ -141,7 +138,7 @@ class TestMLP:
         assert scalar_out.shape == (bs, 1)
 
     def test_mlp_time_dependency(self):
-        """Test that MLP produces different outputs for different time values"""
+        """Test that MLP produces different outputs for different time values."""
         act_dim = 7
         Ta = 8
         obs_dim = 20
@@ -181,7 +178,7 @@ class TestMLP:
         assert is_different
 
     def test_mlp_disable_time_embedding(self):
-        """Test MLP with time embedding disabled"""
+        """Test MLP with time embedding disabled."""
         act_dim = 7
         Ta = 8
         obs_dim = 20

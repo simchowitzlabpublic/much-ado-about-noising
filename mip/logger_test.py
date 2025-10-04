@@ -1,4 +1,4 @@
-"""Simple tests for logger.py
+"""Simple tests for logger.py.
 
 Author: Chaoyi Pan
 Date: 2025-10-03
@@ -160,7 +160,7 @@ class TestLogger:
                 log=log_config,
             )
 
-            logger = Logger(config)
+            Logger(config)
 
             # Check that directories were created
             assert os.path.exists(tmpdir)
@@ -319,7 +319,7 @@ class TestLogger:
             logger = Logger(config)
 
             # Create a proper mock gymnasium environment
-            mock_base_env = Mock(spec=gym.Env)
+            Mock(spec=gym.Env)
             mock_recorder = Mock(spec=VideoRecorder)
             mock_recorder.stop = Mock()
 

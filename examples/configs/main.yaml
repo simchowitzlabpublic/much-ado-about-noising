@@ -2,7 +2,7 @@ defaults:
   - log: default
   - optimization: default
   - network: mlp
-  - task: lift
+  - task: lift_ph_state
   - _self_
 
 mode: "train"

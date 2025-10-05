@@ -21,7 +21,7 @@ import h5py
 from huggingface_hub import HfApi, hf_hub_download, upload_file
 
 # HuggingFace repo for processed datasets
-PROCESSED_REPO_ID = "iscoyizj/mip-dataset"
+PROCESSED_REPO_ID = "ChaoyiPan/mip-dataset"
 
 
 def download_original_dataset(
@@ -62,7 +62,7 @@ def process_to_image_dataset(
     demo_path: str,
     task: str = "lift",
     source: str = "ph",
-    n_demos: int = 50,
+    n_demos: int = -1,  # -1 means all demos
     camera_names: list | None = None,
     camera_height: int = 84,
     camera_width: int = 84,
@@ -73,7 +73,7 @@ def process_to_image_dataset(
         demo_path: Path to demo.hdf5 file
         task: Task name for camera configuration
         source: Data source
-        n_demos: Number of demos to process
+        n_demos: Number of demos to process (-1 for all demos)
         camera_names: List of camera names (defaults to task-specific)
         camera_height: Camera image height
         camera_width: Camera image width
@@ -100,10 +100,16 @@ def process_to_image_dataset(
     # Create temp directory for processing
     temp_dir = tempfile.mkdtemp()
     temp_demo_path = os.path.join(temp_dir, "demo.hdf5")
-    output_name = f"image_{task}_{source}_{n_demos}demos.hdf5"
-    output_path = os.path.join(temp_dir, output_name)
 
-    print(f"Processing {n_demos} demos to image dataset...")
+    # Determine output name based on whether we're processing all demos
+    if n_demos == -1:
+        output_name = f"image_{task}_{source}.hdf5"
+        print("Processing ALL demos to image dataset...")
+    else:
+        output_name = f"image_{task}_{source}_{n_demos}demos.hdf5"
+        print(f"Processing {n_demos} demos to image dataset...")
+
+    output_path = os.path.join(temp_dir, output_name)
     shutil.copy2(demo_path, temp_demo_path)
 
     # Build command
@@ -116,8 +122,11 @@ def process_to_image_dataset(
         "--done_mode=2",
         f"--camera_height={camera_height}",
         f"--camera_width={camera_width}",
-        f"--n={n_demos}",
     ]
+
+    # Only add -n flag if not processing all demos
+    if n_demos != -1:
+        cmd.append(f"--n={n_demos}")
 
     # Add camera names
     for camera_name in camera_names:
@@ -154,15 +163,20 @@ def upload_to_hub(
         task: Task name
         source: Data source
         dataset_type: Type ('low_dim' or 'image')
-        n_demos: Number of demos (for image datasets)
+        n_demos: Number of demos (for image datasets, -1 or None for all)
         repo_id: HuggingFace repo ID
 
     Returns:
         Path in the repository
     """
     # Determine path in repo
-    if dataset_type == "image" and n_demos:
-        repo_path = f"robomimic/{task}/{source}/image_{n_demos}demos.hdf5"
+    if dataset_type == "image":
+        if n_demos and n_demos != -1:
+            repo_path = f"robomimic/{task}/{source}/image_{n_demos}demos.hdf5"
+        else:
+            repo_path = f"robomimic/{task}/{source}/image.hdf5"
+    elif dataset_type == "low_dim":
+        repo_path = f"robomimic/{task}/{source}/low_dim.hdf5"
     else:
         repo_path = f"robomimic/{task}/{source}/{dataset_type}.hdf5"
 
@@ -204,7 +218,7 @@ def upload_to_hub(
 def get_or_create_image_dataset(
     task: str = "lift",
     source: str = "ph",
-    n_demos: int = 50,
+    n_demos: int = -1,
     force_recreate: bool = False,
 ) -> str:
     """Get image dataset from Hub or create and upload if needed.
@@ -212,7 +226,7 @@ def get_or_create_image_dataset(
     Args:
         task: Task name
         source: Data source
-        n_demos: Number of demos
+        n_demos: Number of demos (-1 for all)
         force_recreate: Force recreation even if exists
 
     Returns:
@@ -221,9 +235,14 @@ def get_or_create_image_dataset(
     # Local cache directory
     cache_dir = Path.home() / ".cache" / "mip" / "datasets"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    local_cache_path = cache_dir / f"{task}_{source}_image_{n_demos}demos.hdf5"
 
-    repo_path = f"robomimic/{task}/{source}/image_{n_demos}demos.hdf5"
+    # Determine cache filename based on demo count
+    if n_demos == -1:
+        local_cache_path = cache_dir / f"{task}_{source}_image.hdf5"
+        repo_path = f"robomimic/{task}/{source}/image.hdf5"
+    else:
+        local_cache_path = cache_dir / f"{task}_{source}_image_{n_demos}demos.hdf5"
+        repo_path = f"robomimic/{task}/{source}/image_{n_demos}demos.hdf5"
 
     if not force_recreate:
         # Check local cache first

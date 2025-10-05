@@ -1,0 +1,69 @@
+# @package task
+defaults:
+  - _self_
+
+env_name: "lift"
+obs_type: "image"
+env_type: "mh"
+abs_action: true
+
+# HuggingFace dataset configuration - auto-downloads from the repository
+dataset_repo: "ChaoyiPan/mip-dataset"
+dataset_filename: "robomimic/lift/mh/image.hdf5"
+
+# Alternative: Use original repo with demo dataset (requires local processing)
+# dataset_repo: "amandlek/robomimic"
+# dataset_filename: "v1.5/lift/mh/demo_v15.hdf5"
+
+max_episode_steps: 400
+render_obs_key: "agentview_image"
+
+# Required keys
+obs_steps: 2
+act_steps: 8
+horizon: 10
+num_envs: 1
+save_video: false
+val_dataset_percentage: 0.0
+act_dim: 10
+obs_dim: 128  # Placeholder, will be overridden for image observations
+
+shape_meta:
+  action:
+    shape:
+      - 10
+  obs:
+    agentview_image:
+      shape:
+        - 3
+        - 84
+        - 84
+      type: rgb
+    robot0_eef_pos:
+      shape:
+        - 3
+      type: low_dim
+    robot0_eef_quat:
+      shape:
+        - 4
+      type: low_dim
+    robot0_gripper_qpos:
+      shape:
+        - 2
+      type: low_dim
+    robot0_eye_in_hand_image:
+      shape:
+        - 3
+        - 84
+        - 84
+      type: rgb
+
+# obs_encoder
+rgb_model: resnet18
+resize_shape: null
+crop_shape:
+  - 76
+  - 76
+random_crop: true
+use_group_norm: true
+use_seq: true

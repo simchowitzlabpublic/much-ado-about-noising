@@ -3,7 +3,7 @@
 defaults:
   - /optimization: default
   - /network: mlp
-  - /task: lift_image
+  - /task: lift_ph_image
   - /log: default
   - _self_
 

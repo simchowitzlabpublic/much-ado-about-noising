@@ -9,6 +9,7 @@ num_layers: 6
 dropout: 0.1
 encoder_dropout: 0.0
 expansion_factor: 4
+timestep_emb_dim: 128
 # Image encoder configs (used when encoder_type is "image")
 rgb_model_name: "resnet18"
 use_seq: true

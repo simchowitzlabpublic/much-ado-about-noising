@@ -1,0 +1,29 @@
+# @package task
+defaults:
+  - _self_
+
+env_name: "square"
+obs_type: "state"
+env_type: "ph"
+abs_action: true
+
+# HuggingFace dataset configuration - auto-downloads from the repository
+dataset_repo: "ChaoyiPan/mip-dataset"
+dataset_filename: "robomimic/square/ph/low_dim.hdf5"
+
+# Alternative: Use original repo (already processed)
+# dataset_repo: "amandlek/robomimic"
+# dataset_filename: "v1.5/square/ph/low_dim_v15.hdf5"
+
+max_episode_steps: 400
+obs_keys: ["object", "robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"]
+
+# Required keys
+obs_steps: 2
+act_steps: 8
+horizon: 10
+num_envs: 1
+save_video: false
+val_dataset_percentage: 0.0
+act_dim: 10
+obs_dim: 20  # 14 (object) + 3 (eef_pos) + 4 (eef_quat) + 2 (gripper_qpos) = 23, but normalized to 20

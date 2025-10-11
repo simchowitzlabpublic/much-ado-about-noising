@@ -65,19 +65,15 @@ def process_and_upload_image_dataset(task: str, source: str) -> bool:
     print(f"{'=' * 80}")
 
     try:
-        # Download demo dataset
-        print(f"Downloading demo dataset for {task}/{source}...")
-        demo_path = download_original_dataset(
-            task=task, source=source, dataset_type="demo"
-        )
+        # Use the get_or_create function which has the fixed processing
+        from process_single_robomimic_dataset import get_or_create_image_dataset
 
-        # Process to image dataset with ALL demos (n_demos=-1)
-        print("Processing ALL demos to image dataset...")
-        image_path = process_to_image_dataset(
-            demo_path=demo_path,
+        print(f"Processing image dataset for {task}/{source}...")
+        image_path = get_or_create_image_dataset(
             task=task,
             source=source,
             n_demos=-1,  # Process ALL demos
+            force_recreate=True  # Force to ensure we get the fixed version
         )
 
         # Validate processed dataset
@@ -85,30 +81,8 @@ def process_and_upload_image_dataset(task: str, source: str) -> bool:
         print(f"✓ Image dataset created: {info['n_demos']} demos")
         print(f"  Image keys: {info.get('image_keys', [])}")
 
-        # Cache locally
-        cache_dir = Path.home() / ".cache" / "mip" / "datasets"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        local_cache_path = (
-            cache_dir / f"{task}_{source}_image.hdf5"
-        )  # No "50demos" suffix
-
-        # Copy to cache
-        import shutil
-
-        shutil.copy2(image_path, local_cache_path)
-        print(f"✓ Cached to: {local_cache_path}")
-
-        # Upload to hub
-        print(f"Uploading image dataset to {PROCESSED_REPO_ID}...")
-        repo_path = upload_to_hub(
-            local_path=str(local_cache_path),
-            task=task,
-            source=source,
-            dataset_type="image",
-            n_demos=-1,  # Full dataset
-            repo_id=PROCESSED_REPO_ID,
-        )
-        print(f"✓ Uploaded to: {repo_path}")
+        # The get_or_create function already handles caching and uploading
+        print(f"✓ Dataset processed, cached, and uploaded successfully")
         return True
 
     except Exception as e:

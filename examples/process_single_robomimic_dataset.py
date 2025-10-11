@@ -128,9 +128,10 @@ def process_to_image_dataset(
     if n_demos != -1:
         cmd.append(f"--n={n_demos}")
 
-    # Add camera names
-    for camera_name in camera_names:
-        cmd.extend(["--camera_names", camera_name])
+    # Add camera names - all camera names should follow a single --camera_names flag
+    if camera_names:
+        cmd.append("--camera_names")
+        cmd.extend(camera_names)
 
     # Set environment for EGL rendering
     env = os.environ.copy()

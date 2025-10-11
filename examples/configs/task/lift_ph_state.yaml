@@ -21,7 +21,7 @@ obs_keys: ["object", "robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"]
 # Required keys
 obs_steps: 2
 act_steps: 8
-horizon: 10
+horizon: 16 # NOTE: set horizon to 16 to accommodate the UNet
 num_envs: 1
 save_video: false
 val_dataset_percentage: 0.0

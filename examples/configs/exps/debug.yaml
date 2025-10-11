@@ -10,7 +10,7 @@ defaults:
 mode: "train"
 
 optimization:
-  gradient_steps: 2
+  gradient_steps: 1
   batch_size: 2
 
 log:
@@ -23,7 +23,7 @@ log:
 task:
   num_envs: 1
 
-network:
-  num_layers: 1
-  expansion_factor: 1
-  emb_dim: 128
+# network:
+#   num_layers: 1
+#   expansion_factor: 1
+#   emb_dim: 128

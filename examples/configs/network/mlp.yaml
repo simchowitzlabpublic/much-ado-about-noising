@@ -5,7 +5,7 @@ defaults:
 network_type: "mlp"
 encoder_type: "identity"
 emb_dim: 512
-num_layers: 6
+num_layers: 8
 dropout: 0.1
 encoder_dropout: 0.0
 expansion_factor: 4

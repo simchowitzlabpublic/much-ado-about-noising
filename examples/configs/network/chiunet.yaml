@@ -10,10 +10,15 @@ dropout: 0.0
 encoder_dropout: 0.0
 timestep_emb_dim: 128
 
-# ChiUNet specific configs
-model_dim: 256
+# ChiUNet specific configs, this setting gives around 20M parameters
+model_dim: 128
 kernel_size: 5
 cond_predict_scale: true
 obs_as_global_cond: true
 dim_mult: [1, 2, 2]  # Dimension multipliers for U-Net layers
 timestep_emb_type: "positional"
+
+# Image encoder configs (used when encoder_type is "image")
+rgb_model_name: "resnet18"
+use_seq: true
+keep_horizon_dims: true

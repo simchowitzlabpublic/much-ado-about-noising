@@ -1017,24 +1017,10 @@ def param_to_module(param):
     return module_name
 
 
-def report_parameters(model, topk=10):
+def report_parameters(model, model_name="Model"):
     counts = {k: p.numel() for k, p in model.named_parameters() if p.requires_grad}
     n_parameters = sum(counts.values())
-    logger.info(f"Total parameters: {_to_str(n_parameters)}")
-
-    modules = dict(model.named_modules())
-    sorted_keys = sorted(counts, key=lambda x: -counts[x])
-    for i in range(topk):
-        key = sorted_keys[i]
-        count = counts[key]
-        module = param_to_module(key)
-        logger.info(" " * 8, f"{key:10}: {_to_str(count)} | {modules[module]}")
-
-    remaining_parameters = sum([counts[k] for k in sorted_keys[topk:]])
-    logger.info(
-        " " * 8,
-        f"... and {len(counts) - topk} others accounting for {_to_str(remaining_parameters)} parameters",
-    )
+    logger.info(f"{model_name} - Total parameters: {_to_str(n_parameters)}")
     return n_parameters
 
 

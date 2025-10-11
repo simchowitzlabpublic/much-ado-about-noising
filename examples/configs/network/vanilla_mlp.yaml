@@ -5,7 +5,7 @@ defaults:
 network_type: "vanilla_mlp"
 encoder_type: "identity"
 emb_dim: 512
-num_layers: 6
+num_layers: 8
 dropout: 0.1
 encoder_dropout: 0.0
 timestep_emb_dim: 128  # Not used in vanilla_mlp but kept for compatibility

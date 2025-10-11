@@ -58,27 +58,23 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
         return network_class(
             **common_params,
             d_model=network_config.emb_dim,
-            nhead=getattr(network_config, "nhead", 4),
+            nhead=network_config.nhead,
             num_layers=network_config.num_layers,
             p_drop_emb=network_config.dropout,
-            p_drop_attn=getattr(network_config, "attn_dropout", 0.3),
-            n_cond_layers=getattr(network_config, "n_cond_layers", 0),
-            timestep_emb_type=getattr(
-                network_config, "timestep_emb_type", "positional"
-            ),
+            p_drop_attn=network_config.attn_dropout,
+            n_cond_layers=network_config.n_cond_layers,
+            timestep_emb_type=network_config.timestep_emb_type,
         )
     elif network_config.network_type == "chiunet":
         return network_class(
             **common_params,
-            model_dim=network_config.emb_dim,
+            model_dim=network_config.model_dim,
             emb_dim=network_config.emb_dim,
-            kernel_size=getattr(network_config, "kernel_size", 5),
-            cond_predict_scale=getattr(network_config, "cond_predict_scale", True),
-            obs_as_global_cond=getattr(network_config, "obs_as_global_cond", True),
-            dim_mult=getattr(network_config, "dim_mult", [1, 2, 2]),
-            timestep_emb_type=getattr(
-                network_config, "timestep_emb_type", "positional"
-            ),
+            kernel_size=network_config.kernel_size,
+            cond_predict_scale=network_config.cond_predict_scale,
+            obs_as_global_cond=network_config.obs_as_global_cond,
+            dim_mult=network_config.dim_mult,
+            timestep_emb_type=network_config.timestep_emb_type,
         )
     elif network_config.network_type == "jannerunet":
         return network_class(

@@ -21,7 +21,7 @@ render_obs_key: "agentview_image"
 # Required keys
 obs_steps: 2
 act_steps: 8
-horizon: 10
+horizon: 16
 num_envs: 1
 save_video: false
 val_dataset_percentage: 0.0

@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 
+import loguru
 import torch
 import torch.nn as nn
 
@@ -10,6 +11,7 @@ from mip.flow_map import FlowMap
 from mip.interpolant import Interpolant
 from mip.losses import get_loss_fn
 from mip.network_utils import get_encoder, get_network
+from mip.torch_utils import report_parameters
 from mip.samplers import get_sampler
 
 
@@ -32,14 +34,15 @@ class TrainingAgent:
         self.sampler = get_sampler(config.optimization.loss_type)
         self.interpolant = Interpolant(config.optimization.interp_type)
         net = get_network(config.network, config.task)
+        report_parameters(net, model_name="Action Network")
         self.flow_map = FlowMap(net).to(config.optimization.device)
         self.encoder = get_encoder(config.network, config.task).to(
             config.optimization.device
         )
+        report_parameters(self.encoder, model_name="Encoder Network")
         self.encoder_ema = deepcopy(self.encoder).requires_grad_(False)
         self.flow_map_ema = deepcopy(self.flow_map).requires_grad_(False)
 
-        # optimizer
         params = list(self.encoder.parameters()) + list(self.flow_map.parameters())
         self.optimizer = torch.optim.AdamW(
             params,

@@ -98,11 +98,18 @@ class RobomimicImageWrapper(gym.Env):
 
             # Check if this key exists in raw_obs
             if env_key not in raw_obs:
-                logger.warning(
-                    f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}"
-                )
-                # Skip this key if not found
-                continue
+                # Special handling for agentview - environment generates 'agentview' but dataset expects 'agentview_image'
+                if key == "agentview_image" and "agentview" in raw_obs:
+                    obs[key] = raw_obs["agentview"]
+                elif key == "robot0_eye_in_hand_image" and "robot0_eye_in_hand" in raw_obs:
+                    obs[key] = raw_obs["robot0_eye_in_hand"]
+                else:
+                    logger.warning(
+                        f"Warning: Observation key '{key}' (mapped to '{env_key}') not found in raw observations. Available keys: {list(raw_obs.keys())}"
+                    )
+                    # For missing keys, create a zero array matching expected shape
+                    if key in self.observation_space:
+                        obs[key] = np.zeros(self.observation_space[key].shape, dtype=self.observation_space[key].dtype)
             else:
                 obs[key] = raw_obs[env_key]
         return obs

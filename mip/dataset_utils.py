@@ -189,19 +189,21 @@ class ReplayBuffer:
             compressors = {}
         if chunks is None:
             chunks = {}
-        src_root = zarr.group(src_store)
+        src_root = zarr.open_group(store=src_store, mode="r")
         root = None
         if store is None:
             # numpy backend
             meta = {}
-            for key, value in src_root["meta"].items():
+            meta_group = src_root["meta"]
+            for key in meta_group.keys():
+                value = meta_group[key]
                 if len(value.shape) == 0:
                     meta[key] = np.array(value)
                 else:
                     meta[key] = value[:]
 
             if keys is None:
-                keys = src_root["data"].keys()
+                keys = list(src_root["data"].keys())
             data = {}
             for key in keys:
                 arr = src_root["data"][key]
@@ -209,7 +211,7 @@ class ReplayBuffer:
 
             root = {"meta": meta, "data": data}
         else:
-            root = zarr.group(store=store)
+            root = zarr.open_group(store=store, mode="a")
             # copy without recompression
             n_copied, n_skipped, n_bytes_copied = zarr.copy_store(
                 source=src_store,
@@ -272,7 +274,7 @@ class ReplayBuffer:
         if backend == "numpy":
             logger.warning("backend argument is deprecated!")
             store = None
-        group = zarr.open(os.path.expanduser(zarr_path), "r")
+        group = zarr.open(store=os.path.expanduser(zarr_path), mode="r")
         return cls.copy_from_store(
             src_store=group.store,
             store=store,

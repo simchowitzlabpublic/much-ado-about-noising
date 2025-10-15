@@ -356,7 +356,7 @@ class IdentityEncoder(BaseEncoder):
     """Identity encoder does not change the input condition.
 
     Input:
-        - condition: (b, *cond_in_shape)
+        - condition: (b, *cond_in_shape) or dict of tensors
         - mask :     (b, ) or None, None means no mask
 
     Output:
@@ -367,7 +367,16 @@ class IdentityEncoder(BaseEncoder):
         super().__init__()
         self.dropout = dropout
 
-    def forward(self, condition: torch.Tensor, mask: torch.Tensor = None):
+    def forward(self, condition: torch.Tensor | dict, mask: torch.Tensor = None):
+        # Handle dict input by concatenating all tensors
+        if isinstance(condition, dict):
+            # Sort keys for consistent ordering and concatenate all values
+            keys = sorted(condition.keys())
+            tensors = [condition[k] for k in keys]
+            # Flatten each tensor to (batch, -1) and concatenate
+            flattened = [t.reshape(t.shape[0], -1) for t in tensors]
+            condition = torch.cat(flattened, dim=-1)
+
         mask = at_least_ndim(
             get_mask(
                 mask,
@@ -473,7 +482,16 @@ class MLPEncoder(BaseEncoder):
         )
         self.mlp = Mlp(in_dim, hidden_dims, out_dim, act)
 
-    def forward(self, condition: torch.Tensor, mask: torch.Tensor = None):
+    def forward(self, condition: torch.Tensor | dict, mask: torch.Tensor = None):
+        # Handle dict input by concatenating all tensors
+        if isinstance(condition, dict):
+            # Sort keys for consistent ordering and concatenate all values
+            keys = sorted(condition.keys())
+            tensors = [condition[k] for k in keys]
+            # Flatten each tensor to (batch, -1) and concatenate
+            flattened = [t.reshape(t.shape[0], -1) for t in tensors]
+            condition = torch.cat(flattened, dim=-1)
+
         mask = at_least_ndim(
             get_mask(
                 mask,

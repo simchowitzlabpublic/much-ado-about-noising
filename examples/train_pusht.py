@@ -1,7 +1,7 @@
-"""Training pipeline for robomimic dataset.
+"""Training pipeline for PushT dataset.
 
 Author: Chaoyi Pan
-Date: 2025-10-03
+Date: 2025-10-15
 """
 
 import time
@@ -15,8 +15,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from mip.agent import TrainingAgent
 from mip.config import Config
 from mip.dataset_utils import loop_dataloader
-from mip.datasets.robomimic_dataset import make_dataset
-from mip.envs.robomimic.robomimic_env import make_vec_env
+from mip.datasets.pusht_dataset import make_dataset
+from mip.envs.pusht import make_vec_env
 from mip.logger import Logger, compute_average_metrics, update_best_metrics
 from mip.samplers import get_default_step_list
 from mip.scheduler import WarmupAnnealingScheduler
@@ -32,13 +32,12 @@ def train(config: Config, envs, dataset, agent, logger):
         dataset: Training dataset
         agent: Agent to train
         logger: Logger for metrics
-        val_dataset: Validation dataset (optional)
     """
     # dataloader
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=config.optimization.batch_size,
-        num_workers=4 if config.task.obs_type == "state" else 8,
+        num_workers=4 if config.task.obs_type in ["state", "keypoint"] else 8,
         shuffle=True,
         # accelerate cpu-gpu transfer
         pin_memory=True,
@@ -78,9 +77,17 @@ def train(config: Config, envs, dataset, agent, logger):
                 obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
                     config.optimization.device
                 )
-        elif config.task.obs_type == "state":
-            obs = batch["obs"]["state"].to(config.optimization.device)
-            obs = obs[:, : config.task.obs_steps, :]  # (B, obs_horizon, obs_dim)
+        elif config.task.obs_type in ["state", "keypoint"]:
+            obs_batch = batch["obs"]
+            obs = {}
+            for k in obs_batch:
+                obs_data = obs_batch[k].to(config.optimization.device)
+                obs[k] = obs_data[
+                    :, : config.task.obs_steps, :
+                ]  # (B, obs_horizon, obs_dim)
+        else:
+            raise ValueError(f"Invalid obs_type: {config.task.obs_type}")
+
         act = batch["action"].to(config.optimization.device)
         act = act[:, : config.task.horizon, :]  # (B, horizon, act_dim)
 
@@ -105,7 +112,7 @@ def train(config: Config, envs, dataset, agent, logger):
             for key in info:
                 try:
                     metrics[key] = np.nanmean([info[key] for info in info_list])
-                except Exception:
+                except (KeyError, TypeError, ValueError):
                     metrics[key] = np.nan
             logger.log(metrics, category="train")
             info_list = []
@@ -120,7 +127,9 @@ def train(config: Config, envs, dataset, agent, logger):
             metrics = {"step": n_gradient_step}
             num_steps_list = get_default_step_list(config.optimization.loss_type)
             for num_steps in num_steps_list:
-                metrics.update(eval(config, envs, dataset, agent, logger, num_steps))
+                metrics.update(
+                    evaluate(config, envs, dataset, agent, logger, num_steps)
+                )
 
             # Update best metrics and average metrics
             best_metrics = update_best_metrics(best_metrics, metrics)
@@ -146,7 +155,7 @@ def train(config: Config, envs, dataset, agent, logger):
             agent.train()
 
 
-def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
+def evaluate(config: Config, envs, dataset, agent, logger, num_steps=1):
     """Standalone inference function to evaluate a trained agent and optionally save a video.
 
     Args:
@@ -164,7 +173,6 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
     episode_rewards = []
     episode_steps = []
     episode_success = []
-    episode_kit_success = []
 
     for i in range(config.log.eval_episodes // config.task.num_envs):
         ep_reward = [0.0] * config.task.num_envs
@@ -183,7 +191,35 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                 obs = torch.tensor(
                     obs, device=config.optimization.device, dtype=torch.float32
                 )  # (num_envs, obs_steps, obs_dim)
-            else:  # image-based observation
+            elif config.task.obs_type == "keypoint":
+                obs_raw = obs.astype(np.float32)  # (num_envs, obs_steps, 20)
+                # Split into keypoint and agent_pos
+                keypoint_obs = obs_raw[:, :, :18]  # (num_envs, obs_steps, 18)
+                agent_pos_obs = obs_raw[:, :, 18:20]  # (num_envs, obs_steps, 2)
+
+                # Normalize
+                nkeypoint = (
+                    dataset.normalizer["obs"]["keypoint"]
+                    .normalize(keypoint_obs.reshape(-1, 2))
+                    .reshape(config.task.num_envs, config.task.obs_steps, 18)
+                )
+                nagent_pos = dataset.normalizer["obs"]["agent_pos"].normalize(
+                    agent_pos_obs
+                )
+
+                obs = {
+                    "keypoint": torch.tensor(
+                        nkeypoint,
+                        device=config.optimization.device,
+                        dtype=torch.float32,
+                    ),
+                    "agent_pos": torch.tensor(
+                        nagent_pos,
+                        device=config.optimization.device,
+                        dtype=torch.float32,
+                    ),
+                }
+            elif config.task.obs_type == "image":
                 obs_raw = obs
                 obs = {}
                 for k in obs_raw:
@@ -194,6 +230,8 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                     obs[k] = torch.tensor(
                         obs[k], device=config.optimization.device, dtype=torch.float32
                     )  # (num_envs, obs_steps, obs_dim)
+            else:
+                raise ValueError(f"Invalid obs_type: {config.task.obs_type}")
 
             act_0 = torch.randn(
                 (config.task.num_envs, config.task.horizon, config.task.act_dim),
@@ -218,36 +256,16 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
             end = start + config.task.act_steps
             act = act[:, start:end, :]
 
-            if config.task.abs_action and config.task.env_name in [
-                "can",
-                "lift",
-                "square",
-                "tool_hang",
-                "transport",
-            ]:
-                act = dataset.undo_transform_action(act)
-            obs, reward, terminated, truncated, info = envs.step(act)
-            terminated | truncated
+            obs, reward, terminated, truncated, _ = envs.step(act)
+            _ = terminated | truncated  # Track done status
             ep_reward += reward
             t += config.task.act_steps
+
         success = [1.0 if s > 0 else 0.0 for s in ep_reward]
-
-        # evaluate kitchen
-        kit_success = []
-        if "kitchen" in config.task.env_name:
-            task_completion_counts = [
-                len(info[i]["completed_tasks"][0]) for i in range(config.task.num_envs)
-            ]
-            for num in task_completion_counts:
-                sublist = [1 if i < num else 0 for i in range(7)]
-                kit_success.append(sublist)
-            # Use p4 success rate as the main success metric for kitchen environments
-            success = [1 if num >= 4 else 0 for num in task_completion_counts]
-
         episode_rewards.append(ep_reward)
         episode_steps.append(t)
         episode_success.append(success)
-        episode_kit_success.append(kit_success)
+
     loguru.logger.info(
         f"Nstep: {num_steps} Mean step: {np.nanmean(episode_steps)} Mean reward: {np.nanmean(episode_rewards)} Mean success: {np.nanmean(episode_success)}"
     )
@@ -257,14 +275,6 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         f"mean_reward_{num_steps}": np.nanmean(episode_rewards),
         f"mean_success_{num_steps}": np.nanmean(episode_success),
     }
-
-    if "kitchen" in config.task.env_name:
-        mean_kit_success = np.mean(np.array(episode_kit_success), axis=(0, 1))
-        kit_metrics = {}
-        for i in range(7):
-            kit_metrics[f"p{i + 1}_NFE{num_steps}"] = mean_kit_success[i]
-        metrics.update(kit_metrics)
-        loguru.logger.info(f"Kit metrics: {kit_metrics}")
 
     return metrics
 
@@ -279,9 +289,11 @@ def main(config):
 
     # env setup
     envs = make_vec_env(config.task, seed=config.optimization.seed)
-    obs, info = envs.reset()
+    obs, _ = envs.reset()
     if config.task.obs_type == "state":
         config.task.obs_dim = obs.shape[-1]
+    elif config.task.obs_type == "keypoint":
+        config.task.obs_dim = obs.shape[-1]  # Should be 20
     else:
         # For image observations, set obs_dim to embedding dimension
         # This is used by the network but not actually used when encoder_type is "image"
@@ -298,7 +310,7 @@ def main(config):
         # Use rgb_model from task config if available
         if hasattr(config.task, "rgb_model"):
             config.network.rgb_model_name = config.task.rgb_model
-    elif config.task.obs_type == "state":
+    elif config.task.obs_type in ["state", "keypoint"]:
         # Use identity or mlp encoder for state observations
         if config.network.encoder_type == "image":
             config.network.encoder_type = "identity"
@@ -318,7 +330,7 @@ def main(config):
         num_steps_list = get_default_step_list(config.optimization.loss_type)
         for num_steps in num_steps_list:
             metrics = {"step": num_steps}
-            metrics.update(eval(config, envs, dataset, agent, logger, num_steps))
+            metrics.update(evaluate(config, envs, dataset, agent, logger, num_steps))
             logger.log(metrics, category="eval")
 
         # print result in easy to read format

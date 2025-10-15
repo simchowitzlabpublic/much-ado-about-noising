@@ -209,3 +209,4 @@ __marimo__/
 outputs/
 wandb/
 tmp/
+data/

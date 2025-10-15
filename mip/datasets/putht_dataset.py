@@ -1,5 +1,0 @@
-"""
-PushT dataset.
-
-
-"""

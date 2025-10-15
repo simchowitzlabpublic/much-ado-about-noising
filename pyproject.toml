@@ -28,6 +28,8 @@ dependencies = [
     "torchvision",
     "numba",
     "scikit-image",
+    "pygame",
+    "shapely",
     "pymunk<7.0.0",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4",
     "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git@v1.5.1",

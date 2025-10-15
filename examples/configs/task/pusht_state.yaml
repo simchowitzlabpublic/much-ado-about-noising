@@ -1,0 +1,26 @@
+# @package task
+defaults:
+  - _self_
+
+env_name: "pusht"
+obs_type: "state"
+abs_action: false
+
+# HuggingFace dataset configuration - auto-downloads from the repository
+dataset_repo: "ChaoyiPan/mip-dataset"
+dataset_filename: "pusht/pusht_cchi_v7_replay.zarr.zip"
+
+# Alternative: Use local path
+# dataset_path: "dev/pusht/pusht_cchi_v7_replay.zarr"
+
+max_episode_steps: 300
+
+# Required keys
+obs_steps: 2
+act_steps: 8
+horizon: 16
+num_envs: 1
+save_video: false
+val_dataset_percentage: 0.0
+act_dim: 2
+obs_dim: 5  # [agent_x, agent_y, block_x, block_y, block_angle]

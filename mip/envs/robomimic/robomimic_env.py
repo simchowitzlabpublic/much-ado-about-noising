@@ -155,7 +155,7 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
         )
         if seed is not None:
             env.seed(seed + idx)
-            logger.info("Env seed: ", seed + idx)
+            logger.info(f"Env seed: {seed + idx}")
         return env
 
     return thunk

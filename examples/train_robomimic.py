@@ -292,17 +292,6 @@ def main(config):
     dataset = make_dataset(config.task)
     loguru.logger.info("Finished setting up dataset")
 
-    # Auto-configure encoder type based on observation type
-    if config.task.obs_type == "image":
-        config.network.encoder_type = "image"
-        # Use rgb_model from task config if available
-        if hasattr(config.task, "rgb_model"):
-            config.network.rgb_model_name = config.task.rgb_model
-    elif config.task.obs_type == "state":
-        # Use identity or mlp encoder for state observations
-        if config.network.encoder_type == "image":
-            config.network.encoder_type = "identity"
-
     agent = TrainingAgent(config)
     if config.optimization.model_path and config.optimization.model_path != "None":
         loguru.logger.info(f"Loading model from {config.optimization.model_path}")

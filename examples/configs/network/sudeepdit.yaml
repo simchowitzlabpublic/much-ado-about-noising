@@ -1,13 +1,12 @@
 # @package network
 defaults:
+  - _base
   - _self_
 
 network_type: "sudeepdit"
-encoder_type: "identity"
 emb_dim: 256  # Used as d_model
 num_layers: 8  # Used as depth
 dropout: 0.0
-encoder_dropout: 0.0
 timestep_emb_dim: 128
 
 # SudeepDiT specific configs

@@ -43,13 +43,34 @@ class OptimizationConfig:
 @dataclass
 class NetworkConfig:
     network_type: str = "mlp"  # "mlp" or "cnn"
-    encoder_type: str = "identity"  # "identity" or "mlp" or "image"
     num_layers: int = 4
     emb_dim: int = 512
     dropout: float = 0.1
     encoder_dropout: float = 0.0
     expansion_factor: int = 4
     timestep_emb_dim: int = 128
+    timestep_emb_type: str = "positional"  # Type of timestep embedding
+    # State encoder configs
+    num_encoder_layers: int = 2  # Number of layers for MLP encoder
+    # Image encoder configs
+    rgb_model_name: str = "resnet18"
+    use_seq: bool = True
+    keep_horizon_dims: bool = True
+    # Transformer specific configs
+    n_heads: int = 6
+    n_cond_layers: int = 0
+    attn_dropout: float = 0.1
+    # UNet specific configs
+    model_dim: int = 256
+    kernel_size: int = 5
+    cond_predict_scale: bool = True
+    obs_as_global_cond: bool = True
+    dim_mult: list[int] | None = None
+    norm_type: str = "groupnorm"
+    attention: bool = False
+    # RNN specific configs
+    rnn_type: str = "LSTM"  # "LSTM" or "GRU"
+    max_freq: float = 100.0
 
 
 @dataclass

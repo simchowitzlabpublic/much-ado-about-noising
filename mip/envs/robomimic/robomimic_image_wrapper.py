@@ -4,6 +4,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from loguru import logger
+
 from robomimic.envs.env_robosuite import EnvRobosuite
 
 
@@ -66,24 +67,12 @@ class RobomimicImageWrapper(gym.Env):
                 if base_key in raw_obs:
                     render_key = base_key
                 else:
-                    logger.error(
+                    raise ValueError(
                         f"ERROR: Neither '{render_key}' nor '{base_key}' found in raw_obs keys: {list(raw_obs.keys())}"
                     )
-                    # Use first image key as fallback
-                    for key in raw_obs:
-                        if "image" in key.lower() or key in [
-                            "agentview",
-                            "robot0_eye_in_hand",
-                        ]:
-                            render_key = key
-                            logger.warning(f"Using fallback render key: {render_key}")
-                            break
         self.render_cache = raw_obs[render_key]
 
         obs = {}
-        # Debug: print available keys
-        # print(f"Available keys in raw_obs: {raw_obs.keys()}")
-        # print(f"Expected keys in observation_space: {self.observation_space.keys()}")
 
         for key in self.observation_space:
             # Map dataset keys to environment keys
@@ -101,7 +90,10 @@ class RobomimicImageWrapper(gym.Env):
                 # Special handling for agentview - environment generates 'agentview' but dataset expects 'agentview_image'
                 if key == "agentview_image" and "agentview" in raw_obs:
                     obs[key] = raw_obs["agentview"]
-                elif key == "robot0_eye_in_hand_image" and "robot0_eye_in_hand" in raw_obs:
+                elif (
+                    key == "robot0_eye_in_hand_image"
+                    and "robot0_eye_in_hand" in raw_obs
+                ):
                     obs[key] = raw_obs["robot0_eye_in_hand"]
                 else:
                     logger.warning(
@@ -109,7 +101,10 @@ class RobomimicImageWrapper(gym.Env):
                     )
                     # For missing keys, create a zero array matching expected shape
                     if key in self.observation_space:
-                        obs[key] = np.zeros(self.observation_space[key].shape, dtype=self.observation_space[key].dtype)
+                        obs[key] = np.zeros(
+                            self.observation_space[key].shape,
+                            dtype=self.observation_space[key].dtype,
+                        )
             else:
                 obs[key] = raw_obs[env_key]
         return obs

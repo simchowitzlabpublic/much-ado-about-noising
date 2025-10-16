@@ -18,10 +18,143 @@ import tempfile
 from pathlib import Path
 
 import h5py
+import loguru
 from huggingface_hub import HfApi, hf_hub_download, upload_file
+from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig, OmegaConf
 
 # HuggingFace repo for processed datasets
 PROCESSED_REPO_ID = "ChaoyiPan/mip-dataset"
+
+# Path to task config directory
+SCRIPT_DIR = Path(__file__).parent
+CONFIG_DIR = SCRIPT_DIR / "configs"
+
+
+def load_task_config(task: str, source: str, obs_type: str = "image") -> DictConfig:
+    """Load task configuration using Hydra.
+
+    Args:
+        task: Task name (e.g., 'lift', 'can', 'square')
+        source: Data source (e.g., 'ph', 'mh')
+        obs_type: Observation type ('image' or 'state')
+
+    Returns:
+        Hydra DictConfig with resolved configuration
+
+    Raises:
+        FileNotFoundError: If config file doesn't exist
+    """
+    config_name = f"{task}_{source}_{obs_type}"
+    config_file = CONFIG_DIR / "task" / f"{config_name}.yaml"
+
+    if not config_file.exists():
+        raise FileNotFoundError(
+            f"Config file not found: {config_file}\n"
+            f"Expected path: {config_file.absolute()}"
+        )
+
+    # Initialize Hydra with the config directory
+    with initialize_config_dir(
+        config_dir=str(CONFIG_DIR.absolute()),
+        version_base="1.3",
+    ):
+        # Compose the configuration
+        cfg = compose(config_name=f"task/{config_name}")
+
+    return cfg
+
+
+def get_camera_names_from_config(task: str, source: str) -> list[str]:
+    """Extract camera names from task configuration file using Hydra.
+
+    Args:
+        task: Task name (e.g., 'lift', 'can', 'square')
+        source: Data source (e.g., 'ph', 'mh')
+
+    Returns:
+        List of camera names (without '_image' suffix)
+
+    Raises:
+        FileNotFoundError: If config file doesn't exist
+        ValueError: If config is missing required fields or has no RGB observations
+    """
+    cfg = load_task_config(task, source, obs_type="image")
+
+    # Access the task config (Hydra wraps it under 'task' key)
+    task_cfg = cfg.task
+
+    # Extract image observation keys from shape_meta
+    if "shape_meta" not in task_cfg:
+        raise ValueError(f"Config for {task}/{source} is missing 'shape_meta' field")
+
+    if "obs" not in task_cfg.shape_meta:
+        raise ValueError(
+            f"Config for {task}/{source} is missing 'shape_meta.obs' field"
+        )
+
+    obs_config = task_cfg.shape_meta.obs
+
+    # Find all observation keys with type 'rgb' (image observations)
+    camera_names = []
+    for key, value in obs_config.items():
+        if isinstance(value, DictConfig) and value.get("type") == "rgb":
+            # Remove '_image' suffix to get camera name
+            if key.endswith("_image"):
+                camera_name = key[:-6]  # Remove '_image'
+                camera_names.append(camera_name)
+            else:
+                camera_names.append(key)
+
+    if not camera_names:
+        raise ValueError(
+            f"No RGB observations found in config for {task}/{source}\n"
+            f"Available observation keys: {list(obs_config.keys())}"
+        )
+
+    loguru.logger.info(f"Loaded camera names from config: {camera_names}")
+    return camera_names
+
+
+def get_camera_dimensions_from_config(task: str, source: str) -> tuple[int, int]:
+    """Extract camera dimensions from task configuration file using Hydra.
+
+    Args:
+        task: Task name (e.g., 'lift', 'can', 'square')
+        source: Data source (e.g., 'ph', 'mh')
+
+    Returns:
+        Tuple of (height, width)
+
+    Raises:
+        ValueError: If camera dimensions cannot be determined
+    """
+    cfg = load_task_config(task, source, obs_type="image")
+
+    # Access the task config (Hydra wraps it under 'task' key)
+    task_cfg = cfg.task
+
+    if "shape_meta" not in task_cfg or "obs" not in task_cfg.shape_meta:
+        raise ValueError(f"Config for {task}/{source} is missing observation metadata")
+
+    obs_config = task_cfg.shape_meta.obs
+
+    # Find first RGB observation and extract dimensions
+    for _key, value in obs_config.items():
+        if isinstance(value, DictConfig) and value.get("type") == "rgb":
+            if "shape" in value:
+                shape = OmegaConf.to_object(value.shape)
+                # Shape is [channels, height, width]
+                if len(shape) == 3:
+                    _, height, width = shape
+                    loguru.logger.info(
+                        f"Loaded camera dimensions from config: {height}x{width}"
+                    )
+                    return height, width
+
+    raise ValueError(
+        f"Could not determine camera dimensions from config for {task}/{source}"
+    )
 
 
 def download_original_dataset(
@@ -48,13 +181,13 @@ def download_original_dataset(
     else:
         raise ValueError(f"Invalid dataset_type: {dataset_type}")
 
-    print(f"Downloading {filename} from {repo_id}...")
+    loguru.logger.info(f"Downloading {filename} from {repo_id}...")
     file_path = hf_hub_download(
         repo_id=repo_id,
         filename=filename,
         repo_type="dataset",
     )
-    print(f"Downloaded to: {file_path}")
+    loguru.logger.info(f"Downloaded to: {file_path}")
     return file_path
 
 
@@ -64,8 +197,8 @@ def process_to_image_dataset(
     source: str = "ph",
     n_demos: int = -1,  # -1 means all demos
     camera_names: list | None = None,
-    camera_height: int = 84,
-    camera_width: int = 84,
+    camera_height: int | None = None,
+    camera_width: int | None = None,
 ) -> str:
     """Process demo dataset to image dataset.
 
@@ -74,28 +207,24 @@ def process_to_image_dataset(
         task: Task name for camera configuration
         source: Data source
         n_demos: Number of demos to process (-1 for all demos)
-        camera_names: List of camera names (defaults to task-specific)
-        camera_height: Camera image height
-        camera_width: Camera image width
+        camera_names: List of camera names (loaded from config if None)
+        camera_height: Camera image height (loaded from config if None)
+        camera_width: Camera image width (loaded from config if None)
 
     Returns:
         Path to processed image dataset
     """
     if camera_names is None:
-        # Default camera configurations
-        camera_configs = {
-            "lift": ["agentview", "robot0_eye_in_hand"],
-            "can": ["agentview", "robot0_eye_in_hand"],
-            "square": ["agentview", "robot0_eye_in_hand"],
-            "transport": [
-                "shouldercamera0",
-                "shouldercamera1",
-                "robot0_eye_in_hand",
-                "robot1_eye_in_hand",
-            ],
-            "tool_hang": ["sideview", "robot0_eye_in_hand"],
-        }
-        camera_names = camera_configs.get(task, ["agentview", "robot0_eye_in_hand"])
+        # Load camera names from config file
+        camera_names = get_camera_names_from_config(task, source)
+
+    if camera_height is None or camera_width is None:
+        # Load camera dimensions from config file
+        height, width = get_camera_dimensions_from_config(task, source)
+        if camera_height is None:
+            camera_height = height
+        if camera_width is None:
+            camera_width = width
 
     # Create temp directory for processing
     temp_dir = tempfile.mkdtemp()
@@ -104,10 +233,10 @@ def process_to_image_dataset(
     # Determine output name based on whether we're processing all demos
     if n_demos == -1:
         output_name = f"image_{task}_{source}.hdf5"
-        print("Processing ALL demos to image dataset...")
+        loguru.logger.info("Processing ALL demos to image dataset...")
     else:
         output_name = f"image_{task}_{source}_{n_demos}demos.hdf5"
-        print(f"Processing {n_demos} demos to image dataset...")
+        loguru.logger.info(f"Processing {n_demos} demos to image dataset...")
 
     output_path = os.path.join(temp_dir, output_name)
     shutil.copy2(demo_path, temp_demo_path)
@@ -137,7 +266,7 @@ def process_to_image_dataset(
     env = os.environ.copy()
     env["MUJOCO_GL"] = "egl"
 
-    print(f"Running: {' '.join(cmd)}")
+    loguru.logger.info(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
 
     if result.returncode != 0:
@@ -145,7 +274,7 @@ def process_to_image_dataset(
             f"Failed to process dataset:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
 
-    print(f"Processed dataset saved to: {output_path}")
+    loguru.logger.info(f"Processed dataset saved to: {output_path}")
     return output_path
 
 
@@ -187,7 +316,7 @@ def upload_to_hub(
         # Try to get user info to check authentication
         api.whoami()
     except Exception:
-        print("⚠️ Not authenticated with HuggingFace Hub. Skipping upload.")
+        loguru.logger.error("Not authenticated with HuggingFace Hub. Skipping upload.")
         print("   To enable uploading, run: huggingface-cli login")
         return repo_path
 
@@ -195,11 +324,11 @@ def upload_to_hub(
     try:
         api.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=True)
     except Exception as e:
-        print(f"⚠️ Could not create/access repo: {e}")
+        loguru.logger.error(f"Could not create/access repo: {e}")
         print("   Dataset saved locally but not uploaded.")
         return repo_path
 
-    print(f"Uploading to {repo_id}/{repo_path}...")
+    loguru.logger.info(f"Uploading to {repo_id}/{repo_path}...")
 
     try:
         upload_file(
@@ -208,11 +337,10 @@ def upload_to_hub(
             repo_id=repo_id,
             repo_type="dataset",
         )
-        print(f"✓ Uploaded successfully to {repo_id}/{repo_path}")
+        loguru.logger.info(f"Uploaded successfully to {repo_id}/{repo_path}")
         return repo_path
     except Exception as e:
-        print(f"⚠️ Upload failed: {e}")
-        print("   Dataset saved locally but not uploaded.")
+        loguru.logger.error(f"Upload failed: {e}")
         return repo_path
 
 
@@ -248,12 +376,14 @@ def get_or_create_image_dataset(
     if not force_recreate:
         # Check local cache first
         if local_cache_path.exists():
-            print(f"✓ Found cached dataset: {local_cache_path}")
+            loguru.logger.info(f"Found cached dataset: {local_cache_path}")
             return str(local_cache_path)
 
         # Try to download from processed repo
         try:
-            print(f"Checking for existing dataset at {PROCESSED_REPO_ID}/{repo_path}")
+            loguru.logger.info(
+                f"Checking for existing dataset at {PROCESSED_REPO_ID}/{repo_path}"
+            )
             hub_path = hf_hub_download(
                 repo_id=PROCESSED_REPO_ID,
                 filename=repo_path,
@@ -261,10 +391,10 @@ def get_or_create_image_dataset(
             )
             # Copy to local cache
             shutil.copy2(hub_path, local_cache_path)
-            print(f"✓ Downloaded and cached dataset: {local_cache_path}")
+            loguru.logger.info(f"Downloaded and cached dataset: {local_cache_path}")
             return str(local_cache_path)
         except Exception:
-            print("Dataset not found in Hub, will process locally")
+            loguru.logger.info("Dataset not found in Hub, will process locally")
 
     # Download demo dataset
     demo_path = download_original_dataset(task=task, source=source, dataset_type="demo")
@@ -279,7 +409,7 @@ def get_or_create_image_dataset(
 
     # Copy to local cache
     shutil.copy2(image_path, local_cache_path)
-    print(f"✓ Cached processed dataset: {local_cache_path}")
+    loguru.logger.info(f"Cached processed dataset: {local_cache_path}")
 
     # Try to upload to Hub (optional)
     upload_to_hub(
@@ -310,16 +440,18 @@ def get_or_upload_lowdim_dataset(
 
     # Try to download from our processed repo first
     try:
-        print(f"Checking for dataset at {PROCESSED_REPO_ID}/{repo_path}")
+        loguru.logger.info(f"Checking for dataset at {PROCESSED_REPO_ID}/{repo_path}")
         local_path = hf_hub_download(
             repo_id=PROCESSED_REPO_ID,
             filename=repo_path,
             repo_type="dataset",
         )
-        print(f"✓ Found dataset: {local_path}")
+        loguru.logger.info(f"Found dataset: {local_path}")
         return local_path
     except Exception:
-        print("Dataset not in our repo, downloading from original and uploading...")
+        loguru.logger.info(
+            "Dataset not in our repo, downloading from original and uploading..."
+        )
 
     # Download from original repo
     local_path = download_original_dataset(
@@ -371,47 +503,14 @@ def validate_dataset(hdf5_path: str) -> dict:
 
 def main():
     """Example usage of the modern dataset workflow."""
-    print("=" * 80)
-    print("MODERN HUGGINGFACE DATASET WORKFLOW")
-    print("=" * 80)
-
-    # Example 1: Get or create image dataset
-    print("\n1. Getting image dataset with 50 demos...")
     image_path = get_or_create_image_dataset(
         task="lift",
         source="ph",
-        n_demos=50,
         force_recreate=False,  # Use cached if available
     )
 
     image_info = validate_dataset(image_path)
-    print("✓ Image dataset ready:")
-    print(f"  - Path: {image_info['path']}")
-    print(f"  - Demos: {image_info['n_demos']}")
-    print(f"  - Image keys: {image_info.get('image_keys', [])}")
-
-    # Example 2: Get low-dim dataset
-    print("\n2. Getting low-dim dataset...")
-    lowdim_path = get_or_upload_lowdim_dataset(
-        task="lift",
-        source="ph",
-    )
-
-    lowdim_info = validate_dataset(lowdim_path)
-    print("✓ Low-dim dataset ready:")
-    print(f"  - Path: {lowdim_info['path']}")
-    print(f"  - Demos: {lowdim_info['n_demos']}")
-    print(f"  - Obs keys: {lowdim_info.get('obs_keys', [])}")
-
-    # Example 3: Direct usage with load_dataset (future implementation)
-    print("\n3. Future: Direct loading with datasets library")
-    print("   dataset = load_dataset('iscoyizj/mip-dataset', 'lift_image_50demos')")
-    print("   This will be implemented in robomimic_dataset.py")
-
-    print("\n" + "=" * 80)
-    print("✓ ALL DATASETS READY IN HUGGINGFACE HUB")
-    print(f"  Repository: {PROCESSED_REPO_ID}")
-    print("=" * 80)
+    loguru.logger.info(image_info)
 
 
 if __name__ == "__main__":

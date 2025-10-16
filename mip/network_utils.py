@@ -4,6 +4,7 @@ Author: Chaoyi Pan
 Date: 2025-10-03
 """
 
+import loguru
 import torch
 import torch.nn as nn
 
@@ -35,7 +36,7 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
     common_params = {
         "act_dim": task_config.act_dim,
         "Ta": task_config.horizon,
-        "obs_dim": task_config.obs_dim,
+        "obs_dim": network_config.emb_dim,  # all encoder will encode obs to emb_dim
         "To": task_config.obs_steps,
     }
 
@@ -58,7 +59,7 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
         return network_class(
             **common_params,
             d_model=network_config.emb_dim,
-            nhead=network_config.nhead,
+            nhead=network_config.n_heads,
             num_layers=network_config.num_layers,
             p_drop_emb=network_config.dropout,
             p_drop_attn=network_config.attn_dropout,
@@ -79,76 +80,76 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
     elif network_config.network_type == "jannerunet":
         return network_class(
             **common_params,
-            model_dim=getattr(network_config, "model_dim", 32),
+            model_dim=network_config.model_dim,
             emb_dim=network_config.emb_dim,
-            kernel_size=getattr(network_config, "kernel_size", 3),
-            dim_mult=getattr(network_config, "dim_mult", [1, 2, 2, 2]),
-            norm_type=getattr(network_config, "norm_type", "groupnorm"),
-            attention=getattr(network_config, "attention", False),
-            timestep_emb_type=getattr(
-                network_config, "timestep_emb_type", "positional"
-            ),
+            kernel_size=network_config.kernel_size,
+            dim_mult=network_config.dim_mult,
+            norm_type=network_config.norm_type,
+            attention=network_config.attention,
+            timestep_emb_type=network_config.timestep_emb_type,
         )
     elif network_config.network_type in ["rnn", "vanilla_rnn"]:
         rnn_params = {
             **common_params,
             "rnn_hidden_dim": network_config.emb_dim,
             "rnn_num_layers": network_config.num_layers,
-            "rnn_type": getattr(network_config, "rnn_type", "LSTM"),
+            "rnn_type": network_config.rnn_type,
             "dropout": network_config.dropout,
         }
         if network_config.network_type == "rnn":
             rnn_params.update(
                 {
                     "timestep_emb_dim": network_config.timestep_emb_dim,
-                    "max_freq": getattr(network_config, "max_freq", 100.0),
+                    "max_freq": network_config.max_freq,
                 }
             )
         return network_class(**rnn_params)
     elif network_config.network_type == "sudeepdit":
-        # Ensure n_heads divides emb_dim
-        default_n_heads = 4 if network_config.emb_dim % 4 == 0 else 2
         return network_class(
             **common_params,
             d_model=network_config.emb_dim,
-            n_heads=getattr(network_config, "n_heads", default_n_heads),
+            n_heads=network_config.n_heads,
             depth=network_config.num_layers,
             dropout=network_config.dropout,
-            timestep_emb_type=getattr(
-                network_config, "timestep_emb_type", "positional"
-            ),
+            timestep_emb_type=network_config.timestep_emb_type,
         )
 
 
 def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):
-    if network_config.encoder_type == "identity":
+    if task_config.obs_type == "image":
+        # Force image encoder for image observations
+        encoder_type = "image"
+    elif task_config.obs_type in ["state", "keypoint"]:
+        # For state/keypoint, use mlp encoder
+        encoder_type = "mlp"
+    else:
+        raise ValueError(f"Invalid observation type: {task_config.obs_type}")
+    loguru.logger.info(f"Using encoder type: {encoder_type}")
+
+    if encoder_type == "identity":
         return IdentityEncoder(dropout=network_config.encoder_dropout)
-    elif network_config.encoder_type == "mlp":
+    elif encoder_type == "mlp":
         return MLPEncoder(
             in_dim=task_config.obs_dim,
             out_dim=network_config.emb_dim,
-            hidden_dims=[network_config.emb_dim] * network_config.num_layers,
+            hidden_dims=[network_config.emb_dim] * network_config.num_encoder_layers,
             dropout=network_config.encoder_dropout,
         )
-    elif network_config.encoder_type == "image":
-        # Pass image-specific configs from task_config if available
+    elif encoder_type == "image":
         kwargs = {
             "shape_meta": task_config.shape_meta,
             "rgb_model_name": network_config.rgb_model_name,
             "emb_dim": network_config.emb_dim,
             "use_seq": network_config.use_seq,
             "keep_horizon_dims": network_config.keep_horizon_dims,
+            "resize_shape": task_config.resize_shape,
+            "crop_shape": task_config.crop_shape,
+            "random_crop": task_config.random_crop,
+            "use_group_norm": task_config.use_group_norm,
         }
-
-        # Add optional image processing configs from task_config
-        kwargs["resize_shape"] = task_config.resize_shape
-        kwargs["crop_shape"] = task_config.crop_shape
-        kwargs["random_crop"] = task_config.random_crop
-        kwargs["use_group_norm"] = task_config.use_group_norm
-
         return MultiImageObsEncoder(**kwargs)
     else:
-        raise ValueError(f"Invalid encoder type: {network_config.encoder_type}")
+        raise ValueError(f"Invalid encoder type: {encoder_type}")
 
 
 class GroupNorm1d(nn.Module):

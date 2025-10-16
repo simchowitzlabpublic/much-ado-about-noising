@@ -1,13 +1,12 @@
 # @package network
 defaults:
+  - _base
   - _self_
 
 network_type: "jannerunet"
-encoder_type: "identity"
 emb_dim: 32
 num_layers: 6  # Not directly used, but kept for compatibility
 dropout: 0.0
-encoder_dropout: 0.0
 timestep_emb_dim: 128
 
 # JannerUNet specific configs

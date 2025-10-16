@@ -43,10 +43,10 @@ def make_vec_env(task_config: TaskConfig, seed=None):
 
 
 def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
-    from mip.envs.robomimic_image_wrapper import (
+    from mip.envs.robomimic.robomimic_image_wrapper import (
         RobomimicImageWrapper,
     )
-    from mip.envs.robomimic_lowdim_wrapper import (
+    from mip.envs.robomimic.robomimic_lowdim_wrapper import (
         RobomimicLowdimWrapper,
     )
 

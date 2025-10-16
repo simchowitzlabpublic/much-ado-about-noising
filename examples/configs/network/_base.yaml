@@ -1,0 +1,13 @@
+# @package network
+# Base configuration for all networks - shared encoder parameters
+defaults:
+  - _self_
+
+# Shared encoder parameters (used across all networks)
+num_encoder_layers: 2  # Number of layers for MLP encoder
+encoder_dropout: 0.0   # Dropout for encoder
+
+# Image encoder configs (used when obs_type is "image")
+rgb_model_name: "resnet18"
+use_seq: true
+keep_horizon_dims: true

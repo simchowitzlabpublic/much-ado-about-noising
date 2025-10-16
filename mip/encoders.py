@@ -472,7 +472,8 @@ class MLPEncoder(BaseEncoder):
         act=nn.LeakyReLU(),
         dropout: float = 0.25,
     ):
-        super().__init__(dropout)
+        super().__init__()
+        self.dropout = dropout
         hidden_dims = (
             [
                 hidden_dims,

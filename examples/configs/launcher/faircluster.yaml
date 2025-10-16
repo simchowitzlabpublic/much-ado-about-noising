@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 # Use unique directory per run with timestamp
-hydra_dir: "${save_path}/${now:%Y-%m-%d_%H-%M-%S}_${log.exp_name}"
+hydra_dir: "logs/${now:%Y-%m-%d_%H-%M-%S}_${log.exp_name}"
 
 hydra:
   job:

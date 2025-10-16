@@ -38,6 +38,7 @@ class OptimizationConfig:
     model_path: str | None = None
     interp_type: str = "linear"  # "linear" or "trig"
     device: str = "cuda"
+    use_compile: bool = True  # Whether to use torch.compile for acceleration
 
 
 @dataclass

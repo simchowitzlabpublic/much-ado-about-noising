@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 
 import loguru
+import torch
 import wandb
 from omegaconf import OmegaConf
 
@@ -80,10 +81,15 @@ class Logger:
         printable_items = {
             k: v for k, v in d.items() if not isinstance(v, self._wandb.Image)
         }
-        loguru.logger.info(
-            f"[{d['step']}]",
-            " / ".join(f"{k} {v:.2e}" for k, v in printable_items.items()),
+        # convert torch to float
+        printable_items = {
+            k: v.item() if isinstance(v, torch.Tensor) else v
+            for k, v in printable_items.items()
+        }
+        metrics_str = f"[Step {d['step']}] " + " | ".join(
+            [f"{k}: {v:.2e}" for k, v in printable_items.items() if k != "step"]
         )
+        loguru.logger.info(metrics_str)
 
         # For JSON logging, create a copy without wandb.Image objects
         json_safe_dict = {"step": d["step"]}

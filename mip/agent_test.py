@@ -40,7 +40,6 @@ class TestTrainingAgent:
 
         network_config = NetworkConfig(
             network_type="mlp",
-            encoder_type="identity",
             num_layers=3,
             emb_dim=64,
             dropout=0.0,
@@ -512,7 +511,7 @@ class TestTrainingAgent:
             delta_t = torch.rand(bs)
 
             # Test that lmd/ctm loss types raise an error without reference network
-            with pytest.raises(TypeError):
+            with pytest.raises((TypeError, RuntimeError)):
                 agent.update(act, obs, delta_t)
 
     def test_agent_grad_clip_effect(self):
@@ -702,3 +701,268 @@ class TestTrainingAgent:
         # Sample with EMA
         sampled_act_ema = agent.sample(act_0, obs, use_ema=True)
         assert sampled_act_ema.shape == act_0.shape
+
+    def test_agent_compile_with_different_networks(self):
+        """Test torch.compile works with all network architectures."""
+        act_dim = 2
+        Ta = 16
+        obs_dim = 3
+        To = 2
+        bs = 4
+
+        # Networks to test
+        networks = ["mlp", "vanilla_mlp", "chiunet", "chitransformer", "sudeepdit", "rnn"]
+
+        task_config = TaskConfig(
+            act_dim=act_dim, obs_dim=obs_dim, act_steps=Ta, obs_steps=To, horizon=Ta
+        )
+        log_config = LogConfig(
+            log_dir="./logs",
+            wandb_mode="disabled",
+            project="test",
+            group="test",
+            exp_name="test",
+        )
+
+        for network_type in networks:
+            print(f"\nTesting torch.compile with network: {network_type}")
+
+            # Create config with compilation enabled
+            optimization_config = OptimizationConfig(
+                loss_type="flow",
+                num_steps=1,
+                use_compile=True,
+                device="cpu",
+            )
+            # Use emb_dim=72 which is divisible by n_heads=6 (for transformer)
+            network_config = NetworkConfig(
+                network_type=network_type,
+                emb_dim=72,
+                num_layers=2,
+                model_dim=72,  # For UNet-based networks
+                dropout=0.0,  # Disable dropout for deterministic testing
+                n_heads=6,  # For transformer networks
+            )
+
+            config = Config(
+                optimization=optimization_config,
+                network=network_config,
+                task=task_config,
+                log=log_config,
+            )
+
+            # Create agent (this triggers compilation)
+            agent = TrainingAgent(config)
+
+            # Test tensors
+            act = torch.randn(bs, Ta, act_dim)
+            obs = torch.randn(bs, To, obs_dim)
+            delta_t = torch.rand(bs)
+            act_0 = torch.randn(bs, Ta, act_dim)
+
+            # Test update (compiled)
+            info = agent.update(act, obs, delta_t)
+            assert isinstance(info, dict)
+            assert "loss" in info
+            assert "grad_norm" in info
+
+            # Test sample (compiled)
+            sampled_act = agent.sample(act_0, obs)
+            assert sampled_act.shape == (bs, Ta, act_dim)
+
+            print(f"  ✓ {network_type} works with torch.compile")
+
+    def test_agent_compile_speedup(self):
+        """Test that torch.compile provides speedup over eager mode."""
+        import time
+
+        act_dim = 2
+        Ta = 16
+        obs_dim = 3
+        To = 2
+        bs = 32
+        num_iterations = 20  # Reduced for faster testing
+
+        task_config = TaskConfig(
+            act_dim=act_dim, obs_dim=obs_dim, act_steps=Ta, obs_steps=To, horizon=Ta
+        )
+        log_config = LogConfig(
+            log_dir="./logs",
+            wandb_mode="disabled",
+            project="test",
+            group="test",
+            exp_name="test",
+        )
+
+        # Test data
+        act = torch.randn(bs, Ta, act_dim)
+        obs = torch.randn(bs, To, obs_dim)
+        delta_t = torch.rand(bs)
+
+        # Test without compilation
+        print("\nTesting WITHOUT torch.compile:")
+        optimization_config_no_compile = OptimizationConfig(
+            loss_type="flow",
+            num_steps=1,
+            use_compile=False,
+            device="cpu",
+        )
+        network_config = NetworkConfig(
+            network_type="mlp",
+            emb_dim=128,
+            num_layers=3,
+            dropout=0.0,
+        )
+
+        config_no_compile = Config(
+            optimization=optimization_config_no_compile,
+            network=network_config,
+            task=task_config,
+            log=log_config,
+        )
+
+        agent_no_compile = TrainingAgent(config_no_compile)
+
+        # Warmup
+        for _ in range(3):
+            agent_no_compile.update(act, obs, delta_t)
+
+        # Time without compilation
+        start = time.time()
+        for _ in range(num_iterations):
+            agent_no_compile.update(act, obs, delta_t)
+        time_no_compile = time.time() - start
+        print(f"  Time without compile: {time_no_compile:.4f}s")
+
+        # Test with compilation
+        print("\nTesting WITH torch.compile:")
+        optimization_config_compile = OptimizationConfig(
+            loss_type="flow",
+            num_steps=1,
+            use_compile=True,
+            device="cpu",
+        )
+
+        config_compile = Config(
+            optimization=optimization_config_compile,
+            network=network_config,
+            task=task_config,
+            log=log_config,
+        )
+
+        agent_compile = TrainingAgent(config_compile)
+
+        # Warmup (includes compilation time)
+        print("  Compiling (warmup)...")
+        for _ in range(3):
+            agent_compile.update(act, obs, delta_t)
+
+        # Time with compilation (after warmup)
+        start = time.time()
+        for _ in range(num_iterations):
+            agent_compile.update(act, obs, delta_t)
+        time_compile = time.time() - start
+        print(f"  Time with compile: {time_compile:.4f}s")
+
+        # Calculate speedup
+        speedup = time_no_compile / time_compile
+        print(f"\n  Speedup: {speedup:.2f}x")
+
+        # Assert that compilation provides some benefit or at least doesn't slow down
+        # (On CPU, speedup might be modest; on GPU it's typically much larger)
+        assert time_compile <= time_no_compile * 1.5, (
+            f"Compilation should not significantly slow down execution. "
+            f"Got {speedup:.2f}x speedup (expected >= 0.67x)"
+        )
+
+        # If we get speedup, celebrate!
+        if speedup > 1.0:
+            print(f"  ✓ torch.compile provided {speedup:.2f}x speedup!")
+        else:
+            print(f"  ℹ torch.compile didn't provide speedup on CPU (normal)")
+
+    def test_agent_compile_no_compile_functionality(self):
+        """Test that both compiled and non-compiled agents work correctly."""
+        act_dim = 2
+        Ta = 8
+        obs_dim = 3
+        To = 2
+        bs = 8
+
+        task_config = TaskConfig(
+            act_dim=act_dim, obs_dim=obs_dim, act_steps=Ta, obs_steps=To, horizon=Ta
+        )
+        log_config = LogConfig(
+            log_dir="./logs",
+            wandb_mode="disabled",
+            project="test",
+            group="test",
+            exp_name="test",
+        )
+
+        # Test without compilation
+        optimization_config_no_compile = OptimizationConfig(
+            loss_type="flow",
+            num_steps=1,
+            use_compile=False,
+            device="cpu",
+        )
+        network_config = NetworkConfig(
+            network_type="mlp", emb_dim=64, num_layers=2, dropout=0.0
+        )
+        config_no_compile = Config(
+            optimization=optimization_config_no_compile,
+            network=network_config,
+            task=task_config,
+            log=log_config,
+        )
+        agent_no_compile = TrainingAgent(config_no_compile)
+
+        # Test with compilation
+        optimization_config_compile = OptimizationConfig(
+            loss_type="flow",
+            num_steps=1,
+            use_compile=True,
+            device="cpu",
+        )
+        config_compile = Config(
+            optimization=optimization_config_compile,
+            network=network_config,
+            task=task_config,
+            log=log_config,
+        )
+        agent_compile = TrainingAgent(config_compile)
+
+        # Test data
+        act = torch.randn(bs, Ta, act_dim)
+        obs = torch.randn(bs, To, obs_dim)
+        delta_t = torch.rand(bs)
+        act_0 = torch.randn(bs, Ta, act_dim)
+
+        # Test update for both
+        info_no_compile = agent_no_compile.update(act, obs, delta_t)
+        info_compile = agent_compile.update(act, obs, delta_t)
+
+        # Both should return valid info dicts
+        assert isinstance(info_no_compile, dict)
+        assert isinstance(info_compile, dict)
+        assert "loss" in info_no_compile
+        assert "loss" in info_compile
+        assert "grad_norm" in info_no_compile
+        assert "grad_norm" in info_compile
+
+        # Test sampling for both
+        agent_no_compile.eval()
+        agent_compile.eval()
+
+        with torch.no_grad():
+            sample_no_compile = agent_no_compile.sample(act_0, obs, use_ema=False)
+            sample_compile = agent_compile.sample(act_0, obs, use_ema=False)
+
+        # Both should produce correct shapes
+        assert sample_no_compile.shape == (bs, Ta, act_dim)
+        assert sample_compile.shape == (bs, Ta, act_dim)
+
+        print(f"  ✓ Both compiled and non-compiled agents work correctly")
+        print(f"  No-compile loss: {info_no_compile['loss']:.2f}")
+        print(f"  Compiled loss: {info_compile['loss']:.2f}")

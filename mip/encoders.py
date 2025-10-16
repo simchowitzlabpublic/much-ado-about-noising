@@ -466,14 +466,17 @@ class MLPEncoder(BaseEncoder):
 
     def __init__(
         self,
-        in_dim: int,
-        out_dim: int,
+        obs_dim: int,
+        emb_dim: int,
+        To: int,
         hidden_dims: list[int],
         act=nn.LeakyReLU(),
         dropout: float = 0.25,
     ):
         super().__init__()
         self.dropout = dropout
+        self.To = To
+        self.emb_dim = emb_dim
         hidden_dims = (
             [
                 hidden_dims,
@@ -481,29 +484,32 @@ class MLPEncoder(BaseEncoder):
             if isinstance(hidden_dims, int)
             else hidden_dims
         )
-        self.mlp = Mlp(in_dim, hidden_dims, out_dim, act)
+        self.mlp = Mlp(obs_dim * To, hidden_dims, emb_dim * To, act)
 
-    def forward(self, condition: torch.Tensor | dict, mask: torch.Tensor = None):
+    def forward(self, obs: torch.Tensor | dict, mask: torch.Tensor = None):
         # Handle dict input by concatenating all tensors
-        if isinstance(condition, dict):
+        if isinstance(obs, dict):
             # Sort keys for consistent ordering and concatenate all values
-            keys = sorted(condition.keys())
-            tensors = [condition[k] for k in keys]
-            # Flatten each tensor to (batch, -1) and concatenate
-            flattened = [t.reshape(t.shape[0], -1) for t in tensors]
-            condition = torch.cat(flattened, dim=-1)
+            keys = sorted(obs.keys())
+            obs_list = [obs[k] for k in keys]
+        else:
+            obs_list = [obs]
+        # Flatten each tensor to (batch, -1) and concatenate
+        flattened = [t.reshape(t.shape[0], -1) for t in obs_list]
+        obs = torch.cat(flattened, dim=-1)
 
         mask = at_least_ndim(
             get_mask(
                 mask,
-                (condition.shape[0],),
+                (obs.shape[0],),
                 self.dropout,
                 self.training,
-                condition.device,
+                obs.device,
             ),
-            condition.dim(),
+            obs.dim(),
         )
-        return self.mlp(condition) * mask
+        emb_features = self.mlp(obs) * mask
+        return emb_features.reshape(obs.shape[0], self.To, self.emb_dim)
 
 
 def replace_submodules(

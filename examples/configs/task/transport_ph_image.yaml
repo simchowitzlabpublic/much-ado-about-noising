@@ -1,14 +1,13 @@
 # @package task
 defaults:
+  - robomimic_base
   - _self_
 
 env_name: "transport"
 obs_type: "image"
 env_type: "ph"
-abs_action: true
 
 # HuggingFace dataset configuration - auto-downloads from the repository
-dataset_repo: "ChaoyiPan/mip-dataset"
 dataset_filename: "robomimic/transport/ph/image.hdf5"
 
 # Alternative: Use original repo with demo dataset (requires local processing)
@@ -19,14 +18,8 @@ max_episode_steps: 700
 render_obs_key: "shouldercamera0_image"
 
 # Required keys
-obs_steps: 2
-act_steps: 8
 horizon: 10
-num_envs: 1
-save_video: false
-val_dataset_percentage: 0.0
 act_dim: 14  # Two robots: 7 DOF each
-obs_dim: 128  # Placeholder, will be overridden for image observations
 
 shape_meta:
   action:
@@ -81,13 +74,3 @@ shape_meta:
       shape:
         - 2
       type: low_dim
-
-# obs_encoder
-rgb_model: resnet18
-resize_shape: null
-crop_shape:
-  - 76
-  - 76
-random_crop: true
-use_group_norm: true
-use_seq: true

@@ -10,18 +10,18 @@ defaults:
 mode: "train"
 
 optimization:
-  gradient_steps: 1
+  gradient_steps: 10
   batch_size: 2
 
 log:
   wandb_mode: "disabled"
-  eval_freq: 1
+  eval_freq: 10
   log_freq: 1
-  save_freq: 1
-  eval_episodes: 1
+  save_freq: 10
+  eval_episodes: 2
 
 task:
-  num_envs: 1
+  num_envs: 2
 
 # network:
 #   num_layers: 1

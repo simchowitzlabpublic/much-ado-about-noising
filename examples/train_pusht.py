@@ -290,30 +290,11 @@ def main(config):
     # env setup
     envs = make_vec_env(config.task, seed=config.optimization.seed)
     obs, _ = envs.reset()
-    if config.task.obs_type == "state":
-        config.task.obs_dim = obs.shape[-1]
-    elif config.task.obs_type == "keypoint":
-        config.task.obs_dim = obs.shape[-1]  # Should be 20
-    else:
-        # For image observations, set obs_dim to embedding dimension
-        # This is used by the network but not actually used when encoder_type is "image"
-        config.task.obs_dim = config.network.emb_dim
     loguru.logger.info("Finished setting up env")
 
     # dataset setup
     dataset = make_dataset(config.task)
     loguru.logger.info("Finished setting up dataset")
-
-    # Auto-configure encoder type based on observation type
-    if config.task.obs_type == "image":
-        config.network.encoder_type = "image"
-        # Use rgb_model from task config if available
-        if hasattr(config.task, "rgb_model"):
-            config.network.rgb_model_name = config.task.rgb_model
-    elif config.task.obs_type in ["state", "keypoint"]:
-        # Use identity or mlp encoder for state observations
-        if config.network.encoder_type == "image":
-            config.network.encoder_type = "identity"
 
     agent = TrainingAgent(config)
     if config.optimization.model_path and config.optimization.model_path != "None":

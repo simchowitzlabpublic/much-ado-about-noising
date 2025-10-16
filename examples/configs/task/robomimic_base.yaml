@@ -1,0 +1,26 @@
+# @package task
+# Shared base configuration for all robomimic tasks
+defaults:
+  - _self_
+
+# Common dataset configuration
+dataset_repo: "ChaoyiPan/mip-dataset"
+abs_action: true
+
+# Common required keys
+obs_steps: 2
+act_steps: 8
+num_envs: 20
+save_video: false
+val_dataset_percentage: 0.0
+obs_dim: 128  # Placeholder, will be overridden for image observations
+
+# Common image encoder settings (for image-based tasks)
+rgb_model: resnet18
+resize_shape: null
+crop_shape:
+  - 76
+  - 76
+random_crop: true
+use_group_norm: true
+use_seq: true

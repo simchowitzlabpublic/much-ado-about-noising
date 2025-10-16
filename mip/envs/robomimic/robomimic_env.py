@@ -23,7 +23,13 @@ def make_vec_env(task_config: TaskConfig, seed=None):
     # Suppress output by redirecting stdout temporarily
     original_stdout = sys.stdout
     sys.stdout = io.StringIO()  # Redirect stdout to a string buffer
-    if task_config.num_envs == 1 or task_config.save_video:
+    # Use SyncVectorEnv for image-based tasks (rendering contexts can't be pickled)
+    # or when num_envs=1 or save_video=True
+    if (
+        task_config.num_envs == 1
+        or task_config.save_video
+        or task_config.obs_type == "image"
+    ):
         vnc_env_class = gym.vector.SyncVectorEnv
     else:
         vnc_env_class = gym.vector.AsyncVectorEnv
@@ -149,7 +155,7 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
         )
         if seed is not None:
             env.seed(seed + idx)
-            logger.debug("Env seed: ", seed + idx)
+            logger.info("Env seed: ", seed + idx)
         return env
 
     return thunk

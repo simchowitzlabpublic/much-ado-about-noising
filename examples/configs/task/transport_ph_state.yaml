@@ -1,14 +1,13 @@
 # @package task
 defaults:
+  - robomimic_base
   - _self_
 
 env_name: "transport"
 obs_type: "state"
 env_type: "ph"
-abs_action: true
 
 # HuggingFace dataset configuration - auto-downloads from the repository
-dataset_repo: "ChaoyiPan/mip-dataset"
 dataset_filename: "robomimic/transport/ph/low_dim.hdf5"
 
 # Alternative: Use original repo (already processed)
@@ -19,11 +18,6 @@ max_episode_steps: 700
 obs_keys: ["object", "robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos", "robot1_eef_pos", "robot1_eef_quat", "robot1_gripper_qpos"]
 
 # Required keys
-obs_steps: 2
-act_steps: 8
 horizon: 10
-num_envs: 1
-save_video: false
-val_dataset_percentage: 0.0
 act_dim: 14  # Two robots: 7 DOF each
 obs_dim: 41  # 14 (object) + 3 (robot0_eef_pos) + 4 (robot0_eef_quat) + 2 (robot0_gripper_qpos) + 3 (robot1_eef_pos) + 4 (robot1_eef_quat) + 2 (robot1_gripper_qpos) = 32, but normalized differently

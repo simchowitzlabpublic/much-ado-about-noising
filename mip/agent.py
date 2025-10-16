@@ -11,8 +11,8 @@ from mip.flow_map import FlowMap
 from mip.interpolant import Interpolant
 from mip.losses import get_loss_fn
 from mip.network_utils import get_encoder, get_network
-from mip.torch_utils import report_parameters
 from mip.samplers import get_sampler
+from mip.torch_utils import report_parameters
 
 
 class TrainingAgent:
@@ -50,6 +50,47 @@ class TrainingAgent:
             weight_decay=config.optimization.weight_decay,
         )
 
+        # Compile training and sampling functions for faster execution
+        self.use_compile = config.optimization.use_compile
+        if self.use_compile:
+            loguru.logger.info("Compiling forward+backward with torch.compile")
+            # Compile the training step (forward + backward)
+            self._compute_loss_and_grads = torch.compile(
+                self._compute_loss_and_grads_impl
+            )
+            loguru.logger.info("Compiling sampler with torch.compile")
+            # Compile the sampler (used during evaluation)
+            # Note: Some networks with dynamic shapes may trigger compilation warnings
+            self._compiled_sampler = torch.compile(self.sampler)
+        else:
+            self._compute_loss_and_grads = self._compute_loss_and_grads_impl
+            self._compiled_sampler = self.sampler
+
+    def _compute_loss_and_grads_impl(
+        self, act: torch.Tensor, obs: torch.Tensor, delta_t: torch.Tensor
+    ):
+        """Compute loss and gradients (this function will be compiled).
+
+        Args:
+            act: Action tensor of shape (batch_size, Ta, act_dim)
+            obs: Observation tensor of shape (batch_size, To, obs_dim)
+            delta_t: Time step differences of shape (batch_size,)
+
+        Returns:
+            Tuple of (loss, info_dict)
+        """
+        loss, info = self.loss_fn(
+            self.config.optimization,
+            self.flow_map,
+            self.encoder,
+            self.interpolant,
+            act,
+            obs,
+            delta_t,
+        )
+        loss.backward()
+        return loss, info
+
     def update(self, act: torch.Tensor, obs: torch.Tensor, delta_t: torch.Tensor):
         """Update the model parameters with a training batch.
 
@@ -61,17 +102,8 @@ class TrainingAgent:
         Returns:
             Dictionary containing loss and gradient norm statistics
         """
-        # update optimizer
-        loss, info = self.loss_fn(
-            self.config.optimization,
-            self.flow_map,
-            self.encoder,
-            self.interpolant,
-            act,
-            obs,
-            delta_t,
-        )
-        loss.backward()
+        # Compute loss and gradients (compiled forward + backward)
+        loss, info = self._compute_loss_and_grads(act, obs, delta_t)
 
         params = list(self.encoder.parameters()) + list(self.flow_map.parameters())
         grad_norm = (
@@ -135,7 +167,7 @@ class TrainingAgent:
             flow_map = self.flow_map
             encoder = self.encoder
         with torch.no_grad():
-            act = self.sampler(config, flow_map, encoder, act_0, obs)
+            act = self._compiled_sampler(config, flow_map, encoder, act_0, obs)
         return act
 
     def save(self, path: str):

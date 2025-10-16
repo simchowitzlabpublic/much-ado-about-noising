@@ -3,6 +3,7 @@ defaults:
   - optimization: default
   - network: mlp
   - task: lift_ph_state
+  - launcher: basic
   - _self_
 
 mode: "train"

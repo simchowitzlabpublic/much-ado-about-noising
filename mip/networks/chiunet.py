@@ -1,5 +1,7 @@
 """UNet used in Diffusion Policy by Chi et al."""
 
+from typing import Final
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,6 +15,10 @@ from mip.networks.jannerunet import Downsample1d, Upsample1d
 
 
 class ChiResidualBlock(nn.Module):
+    # Mark out_dim as Final so torch.compile knows it's a compile-time constant
+    out_dim: Final[int]
+    cond_predict_scale: Final[bool]
+
     def __init__(
         self,
         in_dim: int,
@@ -47,7 +53,9 @@ class ChiResidualBlock(nn.Module):
         out = self.conv1(x)
         embed = self.cond_encoder(emb)
         if self.cond_predict_scale:
-            embed = embed.reshape(embed.shape[0], 2, self.out_dim, 1)
+            # Use view with -1 to let PyTorch infer the dimension
+            # This is more torch.compile friendly than using self.out_dim directly
+            embed = embed.view(embed.shape[0], 2, -1, 1)
             scale = embed[:, 0, ...]
             bias = embed[:, 1, ...]
             out = scale * out + bias

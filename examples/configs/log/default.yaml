@@ -9,6 +9,6 @@ group: "default"
 exp_name: "default"
 eval_freq: 20000
 log_freq: 1000
-save_freq: 10000
-eval_episodes: 10
+save_freq: 20000
+eval_episodes: 50
 save_video: False

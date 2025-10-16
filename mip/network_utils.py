@@ -130,8 +130,9 @@ def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):
         return IdentityEncoder(dropout=network_config.encoder_dropout)
     elif encoder_type == "mlp":
         return MLPEncoder(
-            in_dim=task_config.obs_dim,
-            out_dim=network_config.emb_dim,
+            obs_dim=task_config.obs_dim,
+            To=task_config.obs_steps,
+            emb_dim=network_config.emb_dim,
             hidden_dims=[network_config.emb_dim] * network_config.num_encoder_layers,
             dropout=network_config.encoder_dropout,
         )

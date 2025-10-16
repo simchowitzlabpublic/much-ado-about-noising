@@ -4,13 +4,20 @@ Author: Chaoyi Pan
 Date: 2025-10-03
 """
 
+import os
 import time
+
+# Set MuJoCo rendering backend before importing any robomimic/mujoco modules
+# Try OSMesa for headless rendering (software rendering, more compatible but slower)
+os.environ["MUJOCO_GL"] = "osmesa"
 
 import hydra
 import loguru
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+torch.set_float32_matmul_precision("high")
 
 from mip.agent import TrainingAgent
 from mip.config import Config
@@ -95,7 +102,7 @@ def train(config: Config, envs, dataset, agent, logger):
         info_list.append(info)
 
         # log metrics
-        if (n_gradient_step + 1) % config.log.log_freq == 0:
+        if ((n_gradient_step + 1) % config.log.log_freq) == 0:
             metrics = {
                 "step": n_gradient_step,
                 "total_time": time.time() - start_time,
@@ -110,11 +117,11 @@ def train(config: Config, envs, dataset, agent, logger):
             logger.log(metrics, category="train")
             info_list = []
 
-        if (n_gradient_step + 1) % config.log.save_freq == 0:
+        if ((n_gradient_step + 1) % config.log.save_freq) == 0:
             loguru.logger.info("Save model...")
             logger.save_agent(agent=agent, identifier="latest")
 
-        if (n_gradient_step + 1) % config.log.eval_freq == 0:
+        if ((n_gradient_step + 1) % config.log.eval_freq) == 0:
             loguru.logger.info("Evaluate model...")
             agent.eval()
             metrics = {"step": n_gradient_step}
@@ -123,9 +130,25 @@ def train(config: Config, envs, dataset, agent, logger):
                 metrics.update(eval(config, envs, dataset, agent, logger, num_steps))
 
             # Update best metrics and average metrics
+            old_best_metrics = best_metrics.copy()
             best_metrics = update_best_metrics(best_metrics, metrics)
             eval_history.append(metrics.copy())
             avg_metrics = compute_average_metrics(eval_history)
+
+            # Check if this is a new best model based on success rate
+            # Use the first num_steps in the list as the primary metric
+            primary_metric_key = f"mean_success_{num_steps_list[0]}"
+            if primary_metric_key in metrics:
+                is_new_best = (
+                    primary_metric_key not in old_best_metrics
+                    or metrics[primary_metric_key]
+                    > old_best_metrics[primary_metric_key]
+                )
+                if is_new_best:
+                    loguru.logger.info(
+                        f"New best model! {primary_metric_key} = {metrics[primary_metric_key]:.4f}"
+                    )
+                    logger.save_agent(agent=agent, identifier="best")
 
             # Add best and average metrics to current metrics for logging
             for key, value in best_metrics.items():
@@ -183,6 +206,7 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                 obs = torch.tensor(
                     obs, device=config.optimization.device, dtype=torch.float32
                 )  # (num_envs, obs_steps, obs_dim)
+                obs = {"state": obs}
             else:  # image-based observation
                 obs_raw = obs
                 obs = {}

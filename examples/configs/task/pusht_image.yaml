@@ -1,19 +1,9 @@
 # @package task
 defaults:
+  - pusht_base
   - _self_
 
-env_name: "pusht"
 obs_type: "image"
-abs_action: false
-
-# HuggingFace dataset configuration - auto-downloads from the repository
-dataset_repo: "ChaoyiPan/mip-dataset"
-dataset_filename: "pusht/pusht_cchi_v7_replay.zarr.zip"
-
-# Alternative: Use local path
-# dataset_path: "dev/pusht/pusht_cchi_v7_replay.zarr"
-
-max_episode_steps: 300
 
 # Shape metadata for image observations
 shape_meta:
@@ -27,20 +17,4 @@ shape_meta:
       shape: [2]
       type: low_dim
 
-# Image encoder settings
-rgb_model: resnet18
-resize_shape: null
-crop_shape: [84, 84]
-random_crop: true
-use_group_norm: true
-use_seq: true
-
-# Required keys
-obs_steps: 2
-act_steps: 8
-horizon: 16
-num_envs: 1
-save_video: false
-val_dataset_percentage: 0.0
-act_dim: 2
 obs_dim: 128  # Embedding dimension, not actual obs dim

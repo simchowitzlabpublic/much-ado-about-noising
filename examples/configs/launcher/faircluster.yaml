@@ -1,0 +1,23 @@
+# @package _global_
+defaults:
+  - override /hydra/launcher: submitit_slurm
+  - _self_
+
+hydra_dir: "${save_path}"
+
+hydra:
+  job:
+    chdir: False
+  launcher:
+    cpus_per_task: 24
+    partition: devaccel
+    timeout_min: 2880
+    gpus_per_node: 1
+    tasks_per_node: 1
+    constraint: volta32gb
+    nodes: 1
+    mem_gb: 64
+    submitit_folder: "${hydra_dir}/submitit"
+
+  sweep:
+    dir: "${hydra_dir}"

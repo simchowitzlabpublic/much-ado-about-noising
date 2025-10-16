@@ -1,0 +1,34 @@
+# @package _global_
+
+# if run in babel, consider run `ulimit -s unlimited` first
+# also run
+# export OMP_NUM_THREADS=1
+# export MKL_NUM_THREADS=1
+# export NUMBA_NUM_THREADS=1
+# export OPENBLAS_NUM_THREADS=1
+
+defaults:
+  - override /hydra/launcher: submitit_slurm
+  - _self_
+
+hydra_dir: "${save_path}"
+hydra:
+  job:
+    chdir: False
+    name: adaptive_diffusion_run
+    env_set:
+      OPENBLAS_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
+      NUMBA_NUM_THREADS: 1
+      OMP_NUM_THREADS: 1
+  launcher:
+    cpus_per_task: 12
+    timeout_min: 2880
+    gres: gpu:L40S:1 # gpu:A6000:1 or gpu:L40S:1
+    tasks_per_node: 1
+    nodes: 1
+    mem_per_cpu: 8GB
+    submitit_folder: "${hydra_dir}/submitit"
+
+  sweep:
+    dir: "${hydra_dir}"

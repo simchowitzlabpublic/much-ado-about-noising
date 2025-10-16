@@ -3,7 +3,7 @@ defaults:
   - override /hydra/launcher: submitit_slurm
   - _self_
 
-hydra_dir: "${save_path}"
+hydra_dir: "logs"
 
 hydra:
   job:

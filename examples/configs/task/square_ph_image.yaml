@@ -50,3 +50,5 @@ shape_meta:
         - 84
         - 84
       type: rgb
+
+num_envs: 4

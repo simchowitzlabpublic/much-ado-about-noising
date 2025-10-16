@@ -19,6 +19,7 @@ dependencies = [
     "av",
     "dill",
     "hydra-core",
+    "hydra-submitit-launcher",
     "loguru",
     "ipdb",
     "opencv-python-headless",

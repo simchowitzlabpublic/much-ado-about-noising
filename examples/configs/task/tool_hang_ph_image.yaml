@@ -50,3 +50,5 @@ shape_meta:
       shape:
         - 2
       type: low_dim
+
+num_envs: 4

@@ -210,3 +210,4 @@ outputs/
 wandb/
 tmp/
 data/
+logs/

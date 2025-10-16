@@ -3,7 +3,8 @@ defaults:
   - override /hydra/launcher: submitit_slurm
   - _self_
 
-hydra_dir: "logs"
+# Use unique directory per run with timestamp
+hydra_dir: "${save_path}/${now:%Y-%m-%d_%H-%M-%S}_${log.exp_name}"
 
 hydra:
   job:
@@ -18,6 +19,13 @@ hydra:
     nodes: 1
     mem_gb: 64
     submitit_folder: "${hydra_dir}/submitit"
+    # Enable automatic job requeue on preemption or node failure
+    # When job is killed by SLURM, it will automatically restart
+    # The training script will resume from the latest checkpoint
+    additional_parameters:
+      requeue: true
+      # Optional: Send signal before timeout to allow graceful checkpoint save
+      signal_delay_s: 120
 
   sweep:
     dir: "${hydra_dir}"

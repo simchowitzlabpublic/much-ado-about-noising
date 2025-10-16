@@ -211,3 +211,4 @@ wandb/
 tmp/
 data/
 logs/
+checkpoints/

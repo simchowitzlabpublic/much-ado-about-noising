@@ -170,27 +170,56 @@ class TrainingAgent:
             act = self._compiled_sampler(config, flow_map, encoder, act_0, obs)
         return act
 
-    def save(self, path: str):
-        """Save agent models to path."""
-        # save flow map, encoder, encoder_ema, flow_map_ema
-        torch.save(
-            {
-                "flow_map": self.flow_map.state_dict(),
-                "encoder": self.encoder.state_dict(),
-                "encoder_ema": self.encoder_ema.state_dict(),
-                "flow_map_ema": self.flow_map_ema.state_dict(),
-            },
-            path,
-        )
+    def save(self, path: str, training_state: dict = None):
+        """Save agent models to path.
 
-    def load(self, path: str):
-        """Load agent models from path."""
+        Args:
+            path: Path to save checkpoint
+            training_state: Optional dict with training state (n_gradient_step, best_metrics, eval_history)
+        """
+        # save flow map, encoder, encoder_ema, flow_map_ema, optimizer
+        checkpoint = {
+            "flow_map": self.flow_map.state_dict(),
+            "encoder": self.encoder.state_dict(),
+            "encoder_ema": self.encoder_ema.state_dict(),
+            "flow_map_ema": self.flow_map_ema.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+        }
+
+        # Add training state if provided
+        if training_state is not None:
+            checkpoint["training_state"] = training_state
+
+        torch.save(checkpoint, path)
+
+    def load(self, path: str, load_optimizer: bool = False):
+        """Load agent models from path.
+
+        Args:
+            path: Path to load checkpoint from
+            load_optimizer: Whether to load optimizer state
+
+        Returns:
+            training_state dict if available, None otherwise
+        """
         # load flow map, encoder, encoder_ema, flow_map_ema
-        state_dict = torch.load(path)
+        state_dict = torch.load(path, map_location=self.config.optimization.device)
         self.flow_map.load_state_dict(state_dict["flow_map"])
         self.encoder.load_state_dict(state_dict["encoder"])
         self.encoder_ema.load_state_dict(state_dict["encoder_ema"])
         self.flow_map_ema.load_state_dict(state_dict["flow_map_ema"])
+
+        # Load optimizer state if requested and available
+        if load_optimizer and "optimizer" in state_dict:
+            self.optimizer.load_state_dict(state_dict["optimizer"])
+            loguru.logger.info("Loaded optimizer state")
+
+        # Return training state if available
+        training_state = state_dict.get("training_state", None)
+        if training_state:
+            loguru.logger.info(f"Loaded training state from step {training_state.get('n_gradient_step', 'unknown')}")
+
+        return training_state
 
     def eval(self):
         """Set all models to evaluation mode."""

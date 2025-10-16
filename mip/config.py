@@ -39,6 +39,7 @@ class OptimizationConfig:
     interp_type: str = "linear"  # "linear" or "trig"
     device: str = "cuda"
     use_compile: bool = True  # Whether to use torch.compile for acceleration
+    auto_resume: bool = True  # Whether to automatically resume from checkpoint
 
 
 @dataclass

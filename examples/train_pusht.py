@@ -23,7 +23,7 @@ from mip.scheduler import WarmupAnnealingScheduler
 from mip.torch_utils import set_seed
 
 
-def train(config: Config, envs, dataset, agent, logger):
+def train(config: Config, envs, dataset, agent, logger, resume_state=None):
     """Standalone training function.
 
     Args:
@@ -32,6 +32,7 @@ def train(config: Config, envs, dataset, agent, logger):
         dataset: Training dataset
         agent: Agent to train
         logger: Logger for metrics
+        resume_state: Optional dict with training state to resume from
     """
     # dataloader
     dataloader = torch.utils.data.DataLoader(
@@ -60,12 +61,24 @@ def train(config: Config, envs, dataset, agent, logger):
         max_value=config.optimization.max_value,
     )
 
-    # track best evaluation metrics
+    # Resume from checkpoint if available
+    start_step = 0
     best_metrics = {}
     eval_history = []
+    if resume_state is not None:
+        start_step = resume_state.get("n_gradient_step", 0) + 1
+        best_metrics = resume_state.get("best_metrics", {})
+        eval_history = resume_state.get("eval_history", [])
+        loguru.logger.info(f"Resuming training from step {start_step}")
+        loguru.logger.info(f"Restored best metrics: {best_metrics}")
+
+        # Fast-forward the lr_scheduler to the correct step
+        for _ in range(start_step):
+            lr_scheduler.step()
+
     info_list = []
     start_time = time.time()
-    for n_gradient_step in range(config.optimization.gradient_steps):
+    for n_gradient_step in range(start_step, config.optimization.gradient_steps):
         # get batch from dataloader
         batch = next(loop_loader)
 
@@ -132,9 +145,43 @@ def train(config: Config, envs, dataset, agent, logger):
                 )
 
             # Update best metrics and average metrics
+            old_best_metrics = best_metrics.copy()
             best_metrics = update_best_metrics(best_metrics, metrics)
             eval_history.append(metrics.copy())
             avg_metrics = compute_average_metrics(eval_history)
+
+            # Check if this is a new best model based on success rate
+            # Use the first num_steps in the list as the primary metric
+            primary_metric_key = f"mean_success_{num_steps_list[0]}"
+            if primary_metric_key in metrics:
+                is_new_best = (
+                    primary_metric_key not in old_best_metrics
+                    or metrics[primary_metric_key]
+                    > old_best_metrics[primary_metric_key]
+                )
+                if is_new_best:
+                    success_rate = metrics[primary_metric_key]
+                    loguru.logger.info(
+                        f"New best model! {primary_metric_key} = {success_rate:.4f}"
+                    )
+                    # Save to local models directory
+                    logger.save_agent(agent=agent, identifier="best")
+
+                    # Save to global checkpoints directory with success rate comparison
+                    # Include training state for resuming
+                    checkpoint_base_name = (
+                        f"{config.task.env_name}_{config.task.env_type}_{config.task.obs_type}_"
+                        f"{config.optimization.loss_type}_{config.network.network_type}_"
+                        f"{config.network.model_dim}_seed{config.optimization.seed}"
+                    )
+                    training_state = {
+                        "n_gradient_step": n_gradient_step,
+                        "best_metrics": best_metrics,
+                        "eval_history": eval_history,
+                    }
+                    logger.save_global_checkpoint(
+                        agent, checkpoint_base_name, success_rate, training_state=training_state
+                    )
 
             # Add best and average metrics to current metrics for logging
             for key, value in best_metrics.items():
@@ -297,12 +344,30 @@ def main(config):
     loguru.logger.info("Finished setting up dataset")
 
     agent = TrainingAgent(config)
+    resume_state = None
+
     if config.optimization.model_path and config.optimization.model_path != "None":
         loguru.logger.info(f"Loading model from {config.optimization.model_path}")
-        agent.load(config.optimization.model_path)
+        resume_state = agent.load(config.optimization.model_path, load_optimizer=True)
+    elif config.mode == "train" and config.optimization.auto_resume:
+        # Automatically look for checkpoint to resume from
+        checkpoint_base_name = (
+            f"{config.task.env_name}_{config.task.env_type}_{config.task.obs_type}_"
+            f"{config.optimization.loss_type}_{config.network.network_type}_"
+            f"{config.network.model_dim}_seed{config.optimization.seed}"
+        )
+        checkpoint_path = logger.find_latest_checkpoint(checkpoint_base_name)
+        if checkpoint_path:
+            loguru.logger.info(f"Found checkpoint to resume from: {checkpoint_path}")
+            loguru.logger.info("Loading checkpoint with optimizer state...")
+            resume_state = agent.load(str(checkpoint_path), load_optimizer=True)
+        else:
+            loguru.logger.info("No checkpoint found, starting training from scratch")
+    elif config.mode == "train" and not config.optimization.auto_resume:
+        loguru.logger.info("Auto-resume disabled, starting training from scratch")
 
     if config.mode == "train":
-        train(config, envs, dataset, agent, logger)
+        train(config, envs, dataset, agent, logger, resume_state=resume_state)
     elif config.mode == "eval":
         if not config.optimization.model_path:
             raise ValueError("Empty model for inference")

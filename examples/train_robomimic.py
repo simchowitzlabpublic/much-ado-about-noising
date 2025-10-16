@@ -331,6 +331,13 @@ def main(config):
     logger = Logger(config)
     loguru.logger.info("Finished setting up logger")
 
+    # post process config
+    if config.network.network_type == "chiunet":
+        # make sure config.task.horizon is a power of 2
+        old_horizon = config.task.horizon
+        config.task.horizon = int(2 ** np.ceil(np.log2(old_horizon)))
+        loguru.logger.warning(f"ChiUNet requires horizon to be a power of 2, old horizon: {old_horizon}, new horizon: {config.task.horizon}")
+
     # env setup
     envs = make_vec_env(config.task, seed=config.optimization.seed)
     obs, info = envs.reset()

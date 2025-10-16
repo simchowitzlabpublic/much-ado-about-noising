@@ -24,3 +24,4 @@ model_path: null
 interp_type: "linear"
 device: "cuda"
 use_compile: true
+auto_resume: true

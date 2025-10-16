@@ -172,7 +172,7 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                     checkpoint_base_name = (
                         f"{config.task.env_name}_{config.task.env_type}_{config.task.obs_type}_"
                         f"{config.optimization.loss_type}_{config.network.network_type}_"
-                        f"{config.network.model_dim}_seed{config.optimization.seed}"
+                        f"{config.network.emb_dim}_seed{config.optimization.seed}"
                     )
                     training_state = {
                         "n_gradient_step": n_gradient_step,
@@ -354,7 +354,7 @@ def main(config):
         checkpoint_base_name = (
             f"{config.task.env_name}_{config.task.env_type}_{config.task.obs_type}_"
             f"{config.optimization.loss_type}_{config.network.network_type}_"
-            f"{config.network.model_dim}_seed{config.optimization.seed}"
+            f"{config.network.emb_dim}_seed{config.optimization.seed}"
         )
         checkpoint_path = logger.find_latest_checkpoint(checkpoint_base_name)
         if checkpoint_path:

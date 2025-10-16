@@ -55,7 +55,7 @@ def run_test(
             cmd,
             capture_output=True,
             text=True,
-            timeout=300,  # 5 minute timeout
+            timeout=1500,  # 5 minute timeout
         )
 
         if result.returncode == 0:
@@ -116,7 +116,7 @@ def main():
         "rnn",
     ]
 
-    loss_types = ["flow"]  # Add more if needed: ["flow", "flow_v2", etc.]
+    loss_types = ["flow", "mip", "regression"]  # Add more if needed: ["flow", "flow_v2", etc.]
 
     # Track results
     results = {

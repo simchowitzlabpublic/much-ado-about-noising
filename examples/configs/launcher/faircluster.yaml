@@ -10,22 +10,20 @@ hydra:
   job:
     chdir: False
   launcher:
-    cpus_per_task: 24
-    partition: devaccel
+    cpus_per_task: 16
+    partition: learnfair
     timeout_min: 2880
     gpus_per_node: 1
     tasks_per_node: 1
     constraint: volta32gb
     nodes: 1
-    mem_gb: 64
+    mem_gb: 32
     submitit_folder: "${hydra_dir}/submitit"
     # Enable automatic job requeue on preemption or node failure
     # When job is killed by SLURM, it will automatically restart
     # The training script will resume from the latest checkpoint
     additional_parameters:
       requeue: true
-      # Optional: Send signal before timeout to allow graceful checkpoint save
-      signal_delay_s: 120
 
   sweep:
     dir: "${hydra_dir}"

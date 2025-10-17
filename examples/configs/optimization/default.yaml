@@ -23,5 +23,5 @@ max_value: 1.0
 model_path: null
 interp_type: "linear"
 device: "cuda"
-use_compile: true
+use_compile: false
 auto_resume: true

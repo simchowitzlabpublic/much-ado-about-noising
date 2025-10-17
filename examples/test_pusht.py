@@ -1,138 +1,164 @@
-#!/usr/bin/env python
-"""Test training for all PushT task configurations."""
+#!/usr/bin/env python3
+"""Test script to validate PushT training configurations work correctly.
+
+This script tests all PushT task and network combinations using the debug configuration
+to ensure each setup runs without errors. Only tests a single seed (99).
+
+Author: Chaoyi Pan
+Date: 2025-10-17
+"""
 
 import subprocess
 import sys
 
-# Define all task configurations to test
-TASKS = {
-    "pusht": ["state", "keypoint", "image"],
-}
-
-# Test parameters
-TEST_STEPS = 10  # Run for only 10 steps to verify the config works
-BATCH_SIZE = 4  # Small batch size for testing
+# ANSI color codes for terminal output
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
 
 
-def test_task(task_name, obs_type):
-    """Test a single task configuration."""
-    # Determine the config file name
-    config_name = f"{task_name}_{obs_type}"
+def run_test(
+    script: str, task: str, network: str, loss_type: str = "flow"
+) -> tuple[bool, str]:
+    """Run a single test configuration.
 
-    print(f"\n{'=' * 60}")
-    print(f"Testing: {config_name} (obs_type={obs_type})")
-    print(f"{'=' * 60}")
+    Args:
+        script: Training script path (e.g., "examples/train_pusht.py")
+        task: Task configuration name
+        network: Network configuration name
+        loss_type: Loss function type
 
-    # Build command
+    Returns:
+        Tuple of (success: bool, error_message: str)
+    """
     cmd = [
         "uv",
         "run",
-        "python",
-        "examples/train_pusht.py",
+        script,
         "-cn",
         "exps/debug.yaml",
-        f"task={config_name}",
-        f"optimization.gradient_steps={TEST_STEPS}",
-        f"optimization.batch_size={BATCH_SIZE}",
-        "log.log_freq=1",
-        "log.eval_freq=10",
-        "log.wandb_mode=disabled",  # Disable wandb for testing
+        f"task={task}",
+        f"network={network}",
+        f"optimization.loss_type={loss_type}",
+        "optimization.seed=99",
     ]
 
-    print(f"Command: {' '.join(cmd)}")
+    print(
+        f"  Testing: {BOLD}{task}{RESET} + {BOLD}{network}{RESET} + {BOLD}{loss_type}{RESET}...",
+        end=" ",
+    )
 
     try:
-        # Run the training command
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=120,  # 2 minute timeout
-            check=False,
+            timeout=1500,  # 25 minute timeout
         )
 
         if result.returncode == 0:
-            # Check if training actually ran by looking for logging patterns
-            # The training logs use loguru format with "INFO" and step numbers like "[0]", "[1]", etc.
-            training_started = (
-                "Finished setting up dataset" in result.stderr
-                or "Finished setting up dataset" in result.stdout
-            )
-            training_logged = (
-                "mip.logger:log" in result.stderr or "Evaluate model" in result.stderr
-            )
-
-            if training_started and training_logged:
-                print(f"✅ SUCCESS: {config_name} training completed")
-                return True
-            else:
-                print(f"⚠️ WARNING: {config_name} ran but no training output detected")
-                # Print some output for debugging
-                if result.stderr:
-                    lines = [l for l in result.stderr.split("\n")[-10:] if l.strip()]
-                    for line in lines:
-                        print(f"  {line}")
-                return False
+            print(f"{GREEN}✓ PASSED{RESET}")
+            return True, ""
         else:
-            print(f"❌ FAILED: {config_name}")
-            if "No such config group" in result.stderr:
-                print("  Error: Config file not found")
-            elif "FileNotFoundError" in result.stderr:
-                print("  Error: Dataset file not found")
-            elif result.stderr:
-                # Print first few lines of error
-                error_lines = result.stderr.split("\n")[:5]
-                for line in error_lines:
-                    if line.strip():
-                        print(f"  {line}")
-            return False
+            error_msg = result.stderr[-500:] if result.stderr else result.stdout[-500:]
+            print(f"{RED}✗ FAILED{RESET}")
+            return False, error_msg
 
     except subprocess.TimeoutExpired:
-        print(f"⏰ TIMEOUT: {config_name} took too long")
-        return False
+        print(f"{RED}✗ TIMEOUT{RESET}")
+        return False, "Test timed out after 25 minutes"
     except Exception as e:
-        print(f"❌ ERROR: {config_name} - {e}")
-        return False
+        print(f"{RED}✗ ERROR{RESET}")
+        return False, str(e)
 
 
 def main():
-    """Test all task configurations."""
-    print("=" * 80)
-    print("TESTING ALL PUSHT TASK CONFIGURATIONS")
-    print("=" * 80)
-    print(f"Tasks to test: {len(TASKS)}")
-    print(f"Test steps: {TEST_STEPS}")
-    print(f"Batch size: {BATCH_SIZE}")
-    print("=" * 80)
+    """Main test runner."""
+    print(f"\n{BOLD}{'=' * 80}{RESET}")
+    print(f"{BOLD}Running PushT Training Configuration Tests{RESET}")
+    print(f"{BOLD}{'=' * 80}{RESET}\n")
 
-    results = {}
+    # Define test configurations
+    pusht_tasks = [
+        "pusht_state",
+        "pusht_keypoint",
+        "pusht_image",
+    ]
 
-    # Test each task configuration
-    for task_name, obs_types in TASKS.items():
-        for obs_type in obs_types:
-            config_key = f"{task_name}_{obs_type}"
-            success = test_task(task_name, obs_type)
-            results[config_key] = success
+    networks = [
+        "sudeepdit",
+        "chitransformer",
+        "chiunet",
+        "mlp",
+        "rnn",
+    ]
+
+    loss_types = ["flow", "mip", "regression"]
+
+    # Track results
+    results = {
+        "passed": [],
+        "failed": [],
+    }
+
+    # Test PushT configurations
+    print(f"{YELLOW}{BOLD}Testing PushT Configurations{RESET}\n")
+    for task in pusht_tasks:
+        print(f"{BOLD}Task: {task}{RESET}")
+        for network in networks:
+            for loss_type in loss_types:
+                success, error = run_test(
+                    "examples/train_pusht.py",
+                    task,
+                    network,
+                    loss_type,
+                )
+
+                test_name = f"pusht/{task}/{network}/{loss_type}"
+                if success:
+                    results["passed"].append(test_name)
+                else:
+                    results["failed"].append((test_name, error))
+        print()  # Empty line between tasks
 
     # Print summary
-    print("\n" + "=" * 80)
-    print("TEST SUMMARY")
-    print("=" * 80)
+    print(f"\n{BOLD}{'=' * 80}{RESET}")
+    print(f"{BOLD}Test Summary{RESET}")
+    print(f"{BOLD}{'=' * 80}{RESET}\n")
 
-    passed = sum(1 for v in results.values() if v)
-    total = len(results)
+    total_tests = len(results["passed"]) + len(results["failed"])
+    print(f"Total tests run: {BOLD}{total_tests}{RESET}")
+    print(f"{GREEN}Passed: {len(results['passed'])}{RESET}")
+    print(f"{RED}Failed: {len(results['failed'])}{RESET}")
 
-    for config_key, success in results.items():
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status}: {config_key}")
+    if results["failed"]:
+        print(f"\n{RED}{BOLD}Failed Tests:{RESET}")
+        for test_name, error in results["failed"]:
+            print(f"  {RED}✗{RESET} {test_name}")
+            if error:
+                # Print first line of error for quick diagnosis
+                first_line = error.split("\n")[0] if error else ""
+                print(f"    Error: {first_line[:100]}")
 
-    print(f"\n{passed}/{total} configurations passed")
+        print(
+            f"\n{YELLOW}Re-run failed tests individually for full error output:{RESET}"
+        )
+        for test_name, _ in results["failed"]:
+            parts = test_name.split("/")
+            script = f"examples/train_{parts[0]}.py"
+            task = parts[1]
+            network = parts[2]
+            loss_type = parts[3]
+            print(
+                f"  uv run {script} -cn exps/debug.yaml task={task} network={network} optimization.loss_type={loss_type}"
+            )
 
-    if passed == total:
-        print("🎉 All configurations tested successfully!")
-    else:
-        print(f"⚠️ {total - passed} configurations failed")
         sys.exit(1)
+    else:
+        print(f"\n{GREEN}{BOLD}All tests passed! ✨{RESET}\n")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

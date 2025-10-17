@@ -12,6 +12,8 @@ mode: "train"
 optimization:
   gradient_steps: 10
   batch_size: 2
+  auto_resume: false
+  use_compile: false
 
 log:
   wandb_mode: "disabled"

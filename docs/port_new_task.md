@@ -321,36 +321,84 @@ def main():
 
 ## 4. Testing and Verification
 
-### 4.1 Run Dataset Tests
+### 4.1 Download and Process Dataset
+
+First, download and process the dataset from the source:
 
 ```bash
-# Test dataset loader
+# Download dataset (will download to data/<task_name>/)
+uv run python examples/process_<task_name>_dataset.py --skip_upload
+
+# Or upload to HuggingFace (requires authentication)
+uv run python examples/process_<task_name>_dataset.py
+```
+
+### 4.2 Quick Dataset Test
+
+Verify the dataset loader works correctly:
+
+```bash
+# Quick test to verify dataset loading
+uv run python -c "from mip.datasets.<task_name>_dataset import <Task>StateDataset; \
+ds = <Task>StateDataset('data/<task_name>/<dataset_dir>', horizon=16, pad_before=1, pad_after=7); \
+print(f'✅ Dataset loaded: {len(ds)} samples'); \
+item = ds[0]; \
+print(f'✅ State shape: {item[\"obs\"][\"state\"].shape}'); \
+print(f'✅ Action shape: {item[\"action\"].shape}')"
+```
+
+### 4.3 Run Dataset Tests
+
+```bash
+# Test dataset loader (may skip if HuggingFace download not set up)
 uv run pytest mip/datasets/<task_name>_dataset_test.py -v
 
 # Test specific observation type
-uv run pytest mip/datasets/<task_name>_dataset_test.py::TestTaskStateDataset -v
+uv run pytest mip/datasets/<task_name>_dataset_test.py::Test<Task>StateDataset -v
 ```
 
-### 4.2 Run Training Test
+### 4.4 Run Training Test
 
 ```bash
-# Test with debug config
+# Test with debug config using local dataset
+uv run python examples/train_<task_name>.py -cn exps/debug.yaml task=<task_name>_state +task.dataset_path=data/<task_name>/<dataset_dir>
+
+# Test with HuggingFace dataset (if uploaded)
 uv run python examples/train_<task_name>.py -cn exps/debug.yaml task=<task_name>_state
 
 # Run full test suite
 uv run python examples/test_<task_name>.py
 ```
 
-### 4.3 Verification Checklist
+### 4.5 Verification Checklist
 
+- [ ] Dataset download script works
 - [ ] Dataset loader works for all observation types
-- [ ] Dataset tests pass
+- [ ] Dataset tests pass (or skip gracefully)
 - [ ] Environment can be created and reset
 - [ ] Training loop runs without errors
 - [ ] Evaluation works correctly
 - [ ] Video recording works (if enabled)
 - [ ] All configurations in test script pass
 - [ ] Metrics are logged correctly
+
+### 4.6 Common Testing Issues
+
+**Dataset not found:**
+- Make sure to run `process_<task_name>_dataset.py` first
+- Check the dataset path in the config matches the downloaded location
+- Use `+task.dataset_path=<path>` to override the config
+
+**Import errors:**
+- Ensure all dependencies are installed: `uv sync`
+- For environments using legacy APIs, check compatibility wrappers
+
+**Gym vs Gymnasium:**
+- This repo uses `gymnasium` (modern replacement for `gym`)
+- For environments using old `gym` API (like adept_envs), create wrapper to convert:
+  - `reset()` → `reset(seed, options)` returns `(obs, info)`
+  - `step()` returns 5-tuple `(obs, reward, terminated, truncated, info)`
+  - `render(mode)` → `render()` returns array
 
 ## 5. Common Patterns and Tips
 

@@ -1,0 +1,28 @@
+# @package task
+defaults:
+  - _self_
+
+env_name: "kitchen-all-v0"
+env_type: "multitask"
+obs_type: "state"
+abs_action: true
+
+# Dataset configuration
+dataset_repo: "ChaoyiPan/mip-dataset"
+dataset_filename: "kitchen/kitchen_demos_multitask.zip"
+
+# Local path (default for now until dataset is uploaded to HuggingFace)
+
+max_episode_steps: 280
+
+# Task parameters
+obs_steps: 2
+act_steps: 8
+horizon: 16
+num_envs: 10
+save_video: false
+val_dataset_percentage: 0.0
+
+# Dimensions
+act_dim: 9
+obs_dim: 60  # Padded to match dataset (Gymnasium-Robotics has 59, dataset has 60)

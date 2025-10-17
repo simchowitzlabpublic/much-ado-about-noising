@@ -4,6 +4,7 @@ defaults:
   - _self_
 
 env_name: "pusht"
+env_type: "ph"
 abs_action: false
 
 # Common dataset configuration

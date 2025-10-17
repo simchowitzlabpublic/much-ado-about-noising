@@ -54,15 +54,25 @@ class TrainingAgent:
         # Compile training and sampling functions for faster execution
         self.use_compile = config.optimization.use_compile
         if self.use_compile:
-            loguru.logger.info("Compiling forward+backward with torch.compile")
-            # Compile the training step (forward + backward)
-            self._compute_loss_and_grads = torch.compile(
-                self._compute_loss_and_grads_impl
-            )
-            loguru.logger.info("Compiling sampler with torch.compile")
-            # Compile the sampler (used during evaluation)
-            # Note: Some networks with dynamic shapes may trigger compilation warnings
-            self._compiled_sampler = torch.compile(self.sampler)
+            try:
+                loguru.logger.info("Compiling forward+backward with torch.compile")
+                # Compile the training step (forward + backward)
+                self._compute_loss_and_grads = torch.compile(
+                    self._compute_loss_and_grads_impl
+                )
+                loguru.logger.info("Compiling sampler with torch.compile")
+                # Compile the sampler (used during evaluation)
+                # Note: Some networks with dynamic shapes may trigger compilation warnings
+                self._compiled_sampler = torch.compile(self.sampler)
+                loguru.logger.info("Successfully compiled models")
+            except (RecursionError, RuntimeError) as e:
+                loguru.logger.warning(
+                    f"torch.compile failed ({type(e).__name__}), falling back to eager mode. "
+                    f"This is expected for complex models. Error: {str(e)[:100]}"
+                )
+                self._compute_loss_and_grads = self._compute_loss_and_grads_impl
+                self._compiled_sampler = self.sampler
+                self.use_compile = False
         else:
             self._compute_loss_and_grads = self._compute_loss_and_grads_impl
             self._compiled_sampler = self.sampler
@@ -204,7 +214,9 @@ class TrainingAgent:
             training_state dict if available, None otherwise
         """
         # load flow map, encoder, encoder_ema, flow_map_ema
-        state_dict = torch.load(path, map_location=self.config.optimization.device)
+        state_dict = torch.load(
+            path, map_location=self.config.optimization.device, weights_only=False
+        )
         self.flow_map.load_state_dict(state_dict["flow_map"])
         self.encoder.load_state_dict(state_dict["encoder"])
         self.encoder_ema.load_state_dict(state_dict["encoder_ema"])
@@ -218,7 +230,9 @@ class TrainingAgent:
         # Return training state if available
         training_state = state_dict.get("training_state", None)
         if training_state:
-            loguru.logger.info(f"Loaded training state from step {training_state.get('n_gradient_step', 'unknown')}")
+            loguru.logger.info(
+                f"Loaded training state from step {training_state.get('n_gradient_step', 'unknown')}"
+            )
 
         return training_state
 

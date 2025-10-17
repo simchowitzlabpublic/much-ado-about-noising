@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Test script to validate all training configurations work correctly.
+"""Test script to validate Kitchen training configurations work correctly.
 
-This script tests all task and network combinations using the debug configuration
-to ensure each setup runs without errors. Only tests a single seed (0).
+This script tests all Kitchen task and network combinations using the debug configuration
+to ensure each setup runs without errors. Only tests a single seed (99).
 
 Author: Chaoyi Pan
-Date: 2025-10-16
+Date: 2025-10-17
 """
 
 import subprocess
@@ -25,7 +25,7 @@ def run_test(
     """Run a single test configuration.
 
     Args:
-        script: Training script path (e.g., "examples/train_robomimic.py")
+        script: Training script path (e.g., "examples/train_kitchen.py")
         task: Task configuration name
         network: Network configuration name
         loss_type: Loss function type
@@ -55,57 +55,34 @@ def run_test(
             cmd,
             capture_output=True,
             text=True,
-            timeout=1500,  # 5 minute timeout
+            timeout=1500,  # 25 minute timeout
         )
 
         if result.returncode == 0:
-            print(f"{GREEN} PASSED{RESET}")
+            print(f"{GREEN}✓ PASSED{RESET}")
             return True, ""
         else:
             error_msg = result.stderr[-500:] if result.stderr else result.stdout[-500:]
-            print(f"{RED} FAILED{RESET}")
+            print(f"{RED}✗ FAILED{RESET}")
             return False, error_msg
 
     except subprocess.TimeoutExpired:
-        print(f"{RED} TIMEOUT{RESET}")
-        return False, "Test timed out after 5 minutes"
+        print(f"{RED}✗ TIMEOUT{RESET}")
+        return False, "Test timed out after 25 minutes"
     except Exception as e:
-        print(f"{RED} ERROR{RESET}")
+        print(f"{RED}✗ ERROR{RESET}")
         return False, str(e)
 
 
 def main():
     """Main test runner."""
     print(f"\n{BOLD}{'=' * 80}{RESET}")
-    print(f"{BOLD}Running MIP Training Configuration Tests{RESET}")
+    print(f"{BOLD}Running Kitchen Training Configuration Tests{RESET}")
     print(f"{BOLD}{'=' * 80}{RESET}\n")
 
     # Define test configurations
-    robomimic_tasks = [
-        "can_mh_image",
-        "can_mh_state",
-        "can_ph_image",
-        "can_ph_state",
-        "lift_mh_image",
-        "lift_mh_state",
-        "lift_ph_image",
-        "lift_ph_state",
-        "square_mh_image",
-        "square_mh_state",
-        "square_ph_image",
-        "square_ph_state",
-        "tool_hang_ph_image",
-        "tool_hang_ph_state",
-        "transport_mh_image",
-        "transport_mh_state",
-        "transport_ph_image",
-        "transport_ph_state",
-    ]
-
-    pusht_tasks = [
-        "pusht_state",
-        "pusht_keypoint",
-        "pusht_image",
+    kitchen_tasks = [
+        "kitchen_state",
     ]
 
     networks = [
@@ -116,7 +93,7 @@ def main():
         "rnn",
     ]
 
-    loss_types = ["flow", "mip", "regression"]  # Add more if needed: ["flow", "flow_v2", etc.]
+    loss_types = ["flow", "mip", "regression"]
 
     # Track results
     results = {
@@ -124,40 +101,20 @@ def main():
         "failed": [],
     }
 
-    # Test Robomimic configurations
-    print(f"{YELLOW}{BOLD}Testing Robomimic Configurations{RESET}\n")
-    for task in robomimic_tasks:
+    # Test Kitchen configurations
+    print(f"{YELLOW}{BOLD}Testing Kitchen Configurations{RESET}\n")
+    for task in kitchen_tasks:
         print(f"{BOLD}Task: {task}{RESET}")
         for network in networks:
             for loss_type in loss_types:
                 success, error = run_test(
-                    "examples/train_robomimic.py",
+                    "examples/train_kitchen.py",
                     task,
                     network,
                     loss_type,
                 )
 
-                test_name = f"robomimic/{task}/{network}/{loss_type}"
-                if success:
-                    results["passed"].append(test_name)
-                else:
-                    results["failed"].append((test_name, error))
-        print()  # Empty line between tasks
-
-    # Test PushT configurations
-    print(f"{YELLOW}{BOLD}Testing PushT Configurations{RESET}\n")
-    for task in pusht_tasks:
-        print(f"{BOLD}Task: {task}{RESET}")
-        for network in networks:
-            for loss_type in loss_types:
-                success, error = run_test(
-                    "examples/train_pusht.py",
-                    task,
-                    network,
-                    loss_type,
-                )
-
-                test_name = f"pusht/{task}/{network}/{loss_type}"
+                test_name = f"kitchen/{task}/{network}/{loss_type}"
                 if success:
                     results["passed"].append(test_name)
                 else:
@@ -177,7 +134,7 @@ def main():
     if results["failed"]:
         print(f"\n{RED}{BOLD}Failed Tests:{RESET}")
         for test_name, error in results["failed"]:
-            print(f"  {RED}{RESET} {test_name}")
+            print(f"  {RED}✗{RESET} {test_name}")
             if error:
                 # Print first line of error for quick diagnosis
                 first_line = error.split("\n")[0] if error else ""
@@ -198,7 +155,7 @@ def main():
 
         sys.exit(1)
     else:
-        print(f"\n{GREEN}{BOLD}All tests passed! <�{RESET}\n")
+        print(f"\n{GREEN}{BOLD}All tests passed! ✨{RESET}\n")
         sys.exit(0)
 
 

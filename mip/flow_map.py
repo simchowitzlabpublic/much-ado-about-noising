@@ -38,6 +38,20 @@ class FlowMap(nn.Module):
         xst = xs + (ts - ss) * f_xst
         return xst
 
+    def get_map_and_velocity(
+        self,
+        s: torch.Tensor,
+        t: torch.Tensor,
+        xs: torch.Tensor,
+        label: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Forward pass of the flow map. Parameterizing it with the stochastic interpolant framework. Return the map and the velocity."""
+        f_xst, _ = self.net(xs, s, t, label)
+        ss = at_least_ndim(s, xs.dim())
+        ts = at_least_ndim(t, xs.dim())
+        xst = xs + (ts - ss) * f_xst
+        return xst, f_xst
+
     def forward_single(
         self,
         s: torch.Tensor,

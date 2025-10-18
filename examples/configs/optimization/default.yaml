@@ -5,7 +5,7 @@ defaults:
 seed: 0
 loss_type: "flow"
 loss_scale: 1.0
-norm_type: "l1"
+norm_type: "l1" # NOTE: this is wrong theoretically, but it works better for robotics tasks
 lr: 1e-4
 weight_decay: 1e-5
 num_steps: 1
@@ -16,7 +16,7 @@ grad_clip_norm: 10.0
 ema_rate: 0.995
 batch_size: 1024
 gradient_steps: 300000
-warmup_ratio: 0.0
+warmup_ratio: 0.2
 rampup_ratio: 0.5
 min_value: 0.0
 max_value: 1.0

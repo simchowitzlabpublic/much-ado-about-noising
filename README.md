@@ -8,6 +8,8 @@ This repository contains all the best practices discovered in paper and is desig
 ## Features
 
 - Minimum
+- Performance: port best practice from diffusion training to flow / flow map policy training
+- Diverse algorithm: to assist future research, support from regression to shortcut models.
 
 ## Installation
 

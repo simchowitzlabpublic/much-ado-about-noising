@@ -32,6 +32,10 @@ def get_loss_fn(loss_type: str) -> Callable:
         return lmd_loss
     elif loss_type == "ctm":
         return ctm_loss
+    elif loss_type == "psd":
+        return psd_loss
+    elif loss_type == "lsd":
+        return lsd_loss
     else:
         raise NotImplementedError(f"Loss type {loss_type} not implemented.")
 
@@ -146,7 +150,7 @@ def mip_loss(
     obs: torch.Tensor,
     delta_t: torch.Tensor,
 ) -> float:
-    """Two step denoising loss."""
+    """Minimum iterative policy loss."""
     # sample
     s = torch.zeros_like(delta_t, device=delta_t.device)
     t = torch.zeros_like(delta_t, device=delta_t.device) + config.t_two_step
@@ -250,3 +254,146 @@ def ctm_loss(
     )
 
     return loss, {}
+
+
+def psd_loss(
+    config: OptimizationConfig,
+    flow_map: FlowMap,
+    encoder: BaseEncoder,
+    interp: Interpolant,
+    act: torch.Tensor,
+    obs: torch.Tensor,
+    delta_t: torch.Tensor,
+) -> float:
+    """Progressive Self-Distillation loss combined with flow matching.
+
+    This loss combines:
+    1. Standard flow matching loss
+    2. PSD term that encourages consistency between single-step and multi-step predictions
+
+    The PSD term uses uniform weighting between intermediate steps.
+    """
+    # ========== Flow matching loss ==========
+    # sample
+    t_flow = torch.rand_like(delta_t, device=delta_t.device)
+    act_0 = torch.randn_like(act, device=act.device)
+    act_1 = act
+
+    # get condition
+    obs_emb = encoder(obs, None)
+
+    # predict
+    act_t = interp.calc_It(t_flow, act_0, act_1)
+    act_t_dot = interp.calc_It_dot(t_flow, act_0, act_1)
+    b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
+
+    # compute flow loss
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
+
+    # ========== PSD term ==========
+    # sample s, t, u like lmd loss
+    temp_batch_1 = torch.rand_like(delta_t, device=delta_t.device)
+    temp_batch_2 = torch.rand_like(delta_t, device=delta_t.device)
+    s = torch.minimum(temp_batch_1, temp_batch_2)
+    t = torch.maximum(temp_batch_1, temp_batch_2)
+    s = torch.maximum(s, t - delta_t)
+
+    # sample u uniformly between s and t
+    h = torch.rand_like(delta_t, device=delta_t.device)
+    u = s + h * (t - s)
+
+    # get interpolated starting point
+    Is = interp.calc_It(s, act_0, act_1)
+
+    # compute full jump s -> t (student)
+    _, f_xst = flow_map.get_map_and_velocity(s, t, Is, obs_emb)
+
+    # compute two-step jump s -> u -> t (teacher, no stopgrad)
+    xsu, f_xsu = flow_map.get_map_and_velocity(s, u, Is, obs_emb)
+    _, f_xut = flow_map.get_map_and_velocity(u, t, xsu, obs_emb)
+
+    # uniform PSD: teacher = (1 - h) * phi_su + h * phi_ut
+    # where h is the relative position of u between s and t
+    student = f_xst
+    # expand h to match f_xsu dimensions: [batch, horizon, act_dim]
+    h_expanded = h.view(-1, 1, 1)
+    teacher = (1 - h_expanded) * f_xsu + h_expanded * f_xut
+
+    # compute PSD loss using get_norm (ignore weight_st as requested)
+    psd_term = get_norm(student - teacher, config.norm_type) ** 2
+    psd_term = config.loss_scale * torch.mean(psd_term)
+
+    # combine losses
+    total_loss = flow_matching_loss + psd_term
+
+    return total_loss, {
+        "flow_loss": flow_matching_loss.item(),
+        "psd_term": psd_term.item(),
+    }
+
+
+def lsd_loss(
+    config: OptimizationConfig,
+    flow_map: FlowMap,
+    encoder: BaseEncoder,
+    interp: Interpolant,
+    act: torch.Tensor,
+    obs: torch.Tensor,
+    delta_t: torch.Tensor,
+) -> float:
+    """Lagrangian self-distillation loss combined with flow matching.
+
+    This loss combines:
+    1. Standard flow matching loss
+    2. LSD term that encourages consistency in the velocity field
+
+    The LSD term uses uniform sampling between s and t without stopgrad.
+    """
+    # ========== Flow matching loss ==========
+    # sample
+    t_flow = torch.rand_like(delta_t, device=delta_t.device)
+    act_0 = torch.randn_like(act, device=act.device)
+    act_1 = act
+
+    # get condition
+    obs_emb = encoder(obs, None)
+
+    # predict
+    act_t = interp.calc_It(t_flow, act_0, act_1)
+    act_t_dot = interp.calc_It_dot(t_flow, act_0, act_1)
+    b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
+
+    # compute flow loss
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
+
+    # ========== LSD term ==========
+    # sample s, t like lmd loss
+    temp_batch_1 = torch.rand_like(delta_t, device=delta_t.device)
+    temp_batch_2 = torch.rand_like(delta_t, device=delta_t.device)
+    s = torch.minimum(temp_batch_1, temp_batch_2)
+    t = torch.maximum(temp_batch_1, temp_batch_2)
+    s = torch.maximum(s, t - delta_t)
+
+    # get interpolated starting point
+    Is = interp.calc_It(s, act_0, act_1)
+
+    # compute Xst and dt_Xst using jvp_t
+    xst, dt_xst = flow_map.jvp_t(s, t, Is, obs_emb)
+
+    # compute the velocity field at the endpoint (no stopgrad)
+    b_eval = flow_map.get_velocity(t, xst, obs_emb)
+
+    # lsd loss (ignore weight_st)
+    error = b_eval - dt_xst
+    lsd_term = get_norm(error, config.norm_type) ** 2
+    lsd_term = config.loss_scale * torch.mean(lsd_term)
+
+    # combine losses
+    total_loss = flow_matching_loss + lsd_term
+
+    return total_loss, {
+        "flow_loss": flow_matching_loss.item(),
+        "lsd_term": lsd_term.item(),
+    }

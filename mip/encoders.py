@@ -708,6 +708,10 @@ class MultiImageObsEncoder(BaseEncoder):
         batch_size = None
         features = []
 
+        # Convert TensorDict to regular dict if needed
+        if hasattr(obs_dict, 'to_dict'):
+            obs_dict = {k: v for k, v in obs_dict.items()}
+
         if self.use_seq:
             # input: (bs, horizon, c, h, w)
             for k in obs_dict:
@@ -791,8 +795,8 @@ class MultiImageObsEncoder(BaseEncoder):
         return output_shape[0]
 
     def get_batch_size(self, obs_dict):
-        any_key = next(iter(obs_dict))
-        any_tensor = obs_dict[any_key]
+        any_key = next(iter(obs_dict.keys()))
+        any_tensor = obs_dict.get(any_key)
         return any_tensor.size(0), any_tensor.size(1)
 
     @property

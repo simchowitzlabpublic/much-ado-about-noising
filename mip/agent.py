@@ -88,7 +88,9 @@ class TrainingAgent:
         if self.use_cudagraphs:
             from tensordict import from_module
 
-            loguru.logger.info("Setting up CUDA graphs - copying parameters to detached models")
+            loguru.logger.info(
+                "Setting up CUDA graphs - copying parameters to detached models"
+            )
             # Copy params to detached models without gradients
             from_module(self.flow_map).data.to_module(self.flow_map_detach)
             from_module(self.encoder).data.to_module(self.encoder_detach)
@@ -119,7 +121,9 @@ class TrainingAgent:
         if self.use_cudagraphs:
             from tensordict.nn import CudaGraphModule
 
-            loguru.logger.info("Wrapping update function with CudaGraphModule for CUDA graph capture")
+            loguru.logger.info(
+                "Wrapping update function with CudaGraphModule for CUDA graph capture"
+            )
             # Wrap the update function with CudaGraphModule
             # in_keys=[] means no input TensorDict, out_keys=[] means output TensorDict keys are inferred
             self._compiled_update = CudaGraphModule(
@@ -304,8 +308,8 @@ class TrainingAgent:
 
         # Convert TensorDict to regular dict with scalar values
         return {
-            "loss": result["loss"].item(),
-            "grad_norm": result["grad_norm"].item(),
+            "loss": result["loss"],
+            "grad_norm": result["grad_norm"],
         }
 
     def ema_update(self):

@@ -33,6 +33,7 @@ def timed(section: str, record_dict: dict):
     yield
     record_dict[section].append(time.perf_counter() - start)
 
+
 from mip.agent import TrainingAgent
 from mip.config import Config
 from mip.dataset_utils import loop_dataloader
@@ -72,7 +73,8 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
 
     # lr scheduler
     lr_scheduler = CosineAnnealingLR(
-        agent.optimizer, T_max=config.optimization.gradient_steps
+        agent.optimizer,
+        T_max=config.optimization.gradient_steps,
     )
 
     # warmup scheduler (mainly for flow map learning)
@@ -127,7 +129,9 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                         )
                 elif config.task.obs_type == "state":
                     obs = batch["obs"]["state"].to(config.optimization.device)
-                    obs = obs[:, : config.task.obs_steps, :]  # (B, obs_horizon, obs_dim)
+                    obs = obs[
+                        :, : config.task.obs_steps, :
+                    ]  # (B, obs_horizon, obs_dim)
                 act = batch["action"].to(config.optimization.device)
                 act = act[:, : config.task.horizon, :]  # (B, horizon, act_dim)
 
@@ -226,7 +230,10 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                         "eval_history": eval_history,
                     }
                     logger.save_global_checkpoint(
-                        agent, checkpoint_base_name, success_rate, training_state=training_state
+                        agent,
+                        checkpoint_base_name,
+                        success_rate,
+                        training_state=training_state,
                     )
 
             # Add best and average metrics to current metrics for logging
@@ -273,7 +280,6 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         "normalize": [],
         "sample": [],
         "unnormalize": [],
-        "env_step": [],
     }
 
     for i in range(config.log.eval_episodes // config.task.num_envs):
@@ -304,7 +310,9 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                         )  # (num_envs, obs_steps, obs_dim)
                         obs[k] = dataset.normalizer["obs"][k].normalize(obs[k])
                         obs[k] = torch.tensor(
-                            obs[k], device=config.optimization.device, dtype=torch.float32
+                            obs[k],
+                            device=config.optimization.device,
+                            dtype=torch.float32,
                         )  # (num_envs, obs_steps, obs_dim)
 
                 act_0 = torch.randn(
@@ -374,10 +382,10 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
     # Calculate inference performance
     if inference_times["sample"]:
         loguru.logger.info(
-            f"Inference perf - Normalize: {np.mean(inference_times['normalize'])*1000:.2f}ms, "
-            f"Sample: {np.mean(inference_times['sample'])*1000:.2f}ms, "
-            f"Unnormalize: {np.mean(inference_times['unnormalize'])*1000:.2f}ms, "
-            f"Env step: {np.mean(inference_times['env_step'])*1000:.2f}ms"
+            f"Inference perf - Normalize: {np.mean(inference_times['normalize']) * 1000:.2f}ms, "
+            f"Sample: {np.mean(inference_times['sample']) * 1000:.2f}ms, "
+            f"Unnormalize: {np.mean(inference_times['unnormalize']) * 1000:.2f}ms, "
+            f"Env step: {np.mean(inference_times['env_step']) * 1000:.2f}ms"
         )
 
     metrics = {
@@ -425,7 +433,9 @@ def main(config):
         # make sure config.task.horizon is a power of 2
         old_horizon = config.task.horizon
         config.task.horizon = int(2 ** np.ceil(np.log2(old_horizon)))
-        loguru.logger.warning(f"ChiUNet requires horizon to be a power of 2, old horizon: {old_horizon}, new horizon: {config.task.horizon}")
+        loguru.logger.warning(
+            f"ChiUNet requires horizon to be a power of 2, old horizon: {old_horizon}, new horizon: {config.task.horizon}"
+        )
 
     # env setup
     envs = make_vec_env(config.task, seed=config.optimization.seed)

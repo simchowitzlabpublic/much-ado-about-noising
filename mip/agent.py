@@ -194,12 +194,12 @@ class TrainingAgent:
             """Complete update step (can be compiled).
 
             Args:
-                data: TensorDict containing 'act', 'obs', 'delta_t' keys
+                data: TensorDict containing 'act', 'obs', 'delta_t'
 
             Returns:
                 TensorDict containing loss, grad_norm, and other metrics
             """
-            # Extract tensors from TensorDict
+            # Extract from TensorDict
             act = data["act"]
             obs = data["obs"]
             delta_t = data["delta_t"]
@@ -286,7 +286,12 @@ class TrainingAgent:
             torch.compiler.cudagraph_mark_step_begin()
 
         # Run the compiled update (includes forward, backward, optimizer, EMA)
-        # Wrap inputs in TensorDict for both CUDA graphs and regular mode
+        # Convert TensorDict to regular dict for torch.compile compatibility
+        # (nested TensorDicts cause issues with torch.compile)
+        if isinstance(obs, TensorDict):
+            obs = dict(obs)
+
+        # Wrap inputs in TensorDict
         data = TensorDict(
             {
                 "act": act,

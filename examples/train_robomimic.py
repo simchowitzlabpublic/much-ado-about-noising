@@ -145,6 +145,9 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                 info = agent.update(act, obs, delta_t)
                 lr_scheduler.step()
 
+            for k, v in info.items():
+                if isinstance(v, torch.Tensor):
+                    info[k] = v.item()
             info_list.append(info)
 
         # log metrics

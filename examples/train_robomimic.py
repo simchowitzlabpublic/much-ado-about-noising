@@ -283,6 +283,7 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         "normalize": [],
         "sample": [],
         "unnormalize": [],
+        "env_step": [],
     }
 
     for i in range(config.log.eval_episodes // config.task.num_envs):

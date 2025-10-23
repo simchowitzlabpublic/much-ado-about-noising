@@ -4,11 +4,50 @@ Author: Chaoyi Pan
 Data: 2025-07-23
 """
 
+import copy
+
 import torch
 import torch.nn as nn
 
 from mip.embeddings import SUPPORTED_TIMESTEP_EMBEDDING
 from mip.networks.base import BaseNetwork
+
+
+class _SimpleTransformerEncoder(nn.Module):
+    """Simple Transformer Encoder without nn.TransformerEncoder for compile compatibility."""
+
+    def __init__(self, encoder_layer, num_layers):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            copy.deepcopy(encoder_layer) for _ in range(num_layers)
+        ])
+        self.num_layers = num_layers
+
+    def forward(self, src, mask=None, src_key_padding_mask=None):
+        output = src
+        for layer in self.layers:
+            output = layer(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+        return output
+
+
+class _SimpleTransformerDecoder(nn.Module):
+    """Simple Transformer Decoder without nn.TransformerDecoder for compile compatibility."""
+
+    def __init__(self, decoder_layer, num_layers):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            copy.deepcopy(decoder_layer) for _ in range(num_layers)
+        ])
+        self.num_layers = num_layers
+
+    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
+                tgt_key_padding_mask=None, memory_key_padding_mask=None):
+        output = tgt
+        for layer in self.layers:
+            output = layer(output, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
+                          tgt_key_padding_mask=tgt_key_padding_mask,
+                          memory_key_padding_mask=memory_key_padding_mask)
+        return output
 
 
 def _init_weights(module):
@@ -112,7 +151,8 @@ class ChiTransformer(BaseNetwork):
                 batch_first=True,
                 norm_first=True,
             )
-            self.encoder = nn.TransformerEncoder(
+            # Use simple encoder for torch.compile compatibility
+            self.encoder = _SimpleTransformerEncoder(
                 encoder_layer=encoder_layer, num_layers=n_cond_layers
             )
         else:
@@ -132,33 +172,15 @@ class ChiTransformer(BaseNetwork):
             batch_first=True,
             norm_first=True,  # important for stability
         )
-        self.decoder = nn.TransformerDecoder(
+        # Use simple decoder for torch.compile compatibility
+        self.decoder = _SimpleTransformerDecoder(
             decoder_layer=decoder_layer, num_layers=num_layers
         )
 
-        # attention mask for decoder self-attention (causal)
-        # causal mask to ensure that attention is only applied to the left in the input sequence
-        # torch.nn.Transformer uses additive mask as opposed to multiplicative mask in minGPT
-        # therefore, the upper triangle should be -inf and others (including diag) should be 0.
-        sz = T
-        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-        mask = (
-            mask.float()
-            .masked_fill(mask == 0, float("-inf"))
-            .masked_fill(mask == 1, 0.0)
-        )
-        self.register_buffer("mask", mask)
-
-        # attention mask for decoder cross-attention
-        S = T_cond
-        t, s = torch.meshgrid(torch.arange(T), torch.arange(S), indexing="ij")
-        mask = t >= (s - 1)  # add one dimension since time is the first token in cond
-        mask = (
-            mask.float()
-            .masked_fill(mask == 0, float("-inf"))
-            .masked_fill(mask == 1, 0.0)
-        )
-        self.register_buffer("memory_mask", mask)
+        # Store mask dimensions for dynamic creation
+        # We'll create masks dynamically in forward() for better torch.compile compatibility
+        self.T = T
+        self.T_cond = T_cond
 
         # decoder head
         self.ln_f = nn.LayerNorm(d_model)
@@ -187,10 +209,6 @@ class ChiTransformer(BaseNetwork):
         # Scalar head taking processed input, processed output, and mean condition embedding
         self.scalar_head = nn.Linear(d_model // 4 + d_model // 4 + d_model, 1)
 
-        # constants
-        self.T = T
-        self.T_cond = T_cond
-
         # init
         self.apply(_init_weights)
 
@@ -201,6 +219,38 @@ class ChiTransformer(BaseNetwork):
         # Zero-out scalar head for stable training
         nn.init.constant_(self.scalar_head.weight, 0)
         nn.init.constant_(self.scalar_head.bias, 0)
+
+    def _create_masks(self, device):
+        """Create attention masks dynamically for better torch.compile compatibility.
+
+        Returns:
+            mask: Causal mask for decoder self-attention
+            memory_mask: Mask for decoder cross-attention
+        """
+        # Causal mask for decoder self-attention
+        sz = self.T
+        mask = (torch.triu(torch.ones(sz, sz, device=device)) == 1).transpose(0, 1)
+        mask = (
+            mask.float()
+            .masked_fill(mask == 0, float("-inf"))
+            .masked_fill(mask == 1, 0.0)
+        )
+
+        # Memory mask for decoder cross-attention
+        S = self.T_cond
+        t_idx, s_idx = torch.meshgrid(
+            torch.arange(self.T, device=device),
+            torch.arange(S, device=device),
+            indexing="ij"
+        )
+        memory_mask = t_idx >= (s_idx - 1)
+        memory_mask = (
+            memory_mask.float()
+            .masked_fill(memory_mask == 0, float("-inf"))
+            .masked_fill(memory_mask == 1, 0.0)
+        )
+
+        return mask, memory_mask
 
     def forward(
         self,
@@ -280,11 +330,15 @@ class ChiTransformer(BaseNetwork):
         decoder_input = self.drop(
             token_embeddings + position_embeddings
         )  # (b, T, d_model)
+
+        # Create masks dynamically for torch.compile compatibility
+        mask, memory_mask = self._create_masks(device)
+
         decoder_output = self.decoder(
             tgt=decoder_input,
             memory=memory,
-            tgt_mask=self.mask,
-            memory_mask=self.memory_mask,
+            tgt_mask=mask,
+            memory_mask=memory_mask,
         )  # (b, T, d_model)
 
         # 6. Predict action sequence (main head)

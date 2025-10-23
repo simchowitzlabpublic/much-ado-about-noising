@@ -42,6 +42,7 @@ dependencies = [
     "datasets>=4.1.1",
     "einops>=0.8.1",
     "gymnasium-robotics>=1.4.1",
+    "tensordict>=0.5.0",
 ]
 
 [project.optional-dependencies]

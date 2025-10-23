@@ -14,6 +14,8 @@ optimization:
   batch_size: 2
   auto_resume: false
   use_compile: false
+  compile_mode: "default"
+  use_cudagraphs: false
 
 log:
   wandb_mode: "disabled"

@@ -6,6 +6,7 @@ Date: 2025-10-03
 
 import os
 import time
+from contextlib import contextmanager
 
 # Set MuJoCo rendering backend before importing any robomimic/mujoco modules
 # Try OSMesa for headless rendering (software rendering, more compatible but slower)
@@ -18,6 +19,19 @@ import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 torch.set_float32_matmul_precision("high")
+
+
+@contextmanager
+def timed(section: str, record_dict: dict):
+    """Context manager for timing code sections.
+
+    Args:
+        section: Name of the section being timed
+        record_dict: Dictionary to store timing results
+    """
+    start = time.perf_counter()
+    yield
+    record_dict[section].append(time.perf_counter() - start)
 
 from mip.agent import TrainingAgent
 from mip.config import Config
@@ -51,6 +65,8 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
         pin_memory=True,
         # don't kill worker process after each epoch
         persistent_workers=True,
+        # IMPORTANT: drop_last=True is required for CUDA graphs (static shapes)
+        drop_last=True,
     )
     loop_loader = loop_dataloader(dataloader)
 
@@ -85,33 +101,47 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
 
     info_list = []
     start_time = time.time()
+
+    # Performance tracking
+    perf_times = {
+        "data_load": [],
+        "preprocess": [],
+        "update": [],
+        "total_step": [],
+    }
+
     for n_gradient_step in range(start_step, config.optimization.gradient_steps):
-        # get batch from dataloader
-        batch = next(loop_loader)
+        with timed("total_step", perf_times):
+            # get batch from dataloader
+            with timed("data_load", perf_times):
+                batch = next(loop_loader)
 
-        # preprocess data
-        if config.task.obs_type == "image":
-            obs_batch = batch["obs"]
-            obs = {}
-            for k in obs_batch:
-                obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
-                    config.optimization.device
+            # preprocess data
+            with timed("preprocess", perf_times):
+                if config.task.obs_type == "image":
+                    obs_batch = batch["obs"]
+                    obs = {}
+                    for k in obs_batch:
+                        obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
+                            config.optimization.device
+                        )
+                elif config.task.obs_type == "state":
+                    obs = batch["obs"]["state"].to(config.optimization.device)
+                    obs = obs[:, : config.task.obs_steps, :]  # (B, obs_horizon, obs_dim)
+                act = batch["action"].to(config.optimization.device)
+                act = act[:, : config.task.horizon, :]  # (B, horizon, act_dim)
+
+            # update diffusion
+            with timed("update", perf_times):
+                delta_t_scalar = warmup_scheduler(n_gradient_step)
+                batch_size = act.shape[0]
+                delta_t = torch.full(
+                    (batch_size,), delta_t_scalar, device=config.optimization.device
                 )
-        elif config.task.obs_type == "state":
-            obs = batch["obs"]["state"].to(config.optimization.device)
-            obs = obs[:, : config.task.obs_steps, :]  # (B, obs_horizon, obs_dim)
-        act = batch["action"].to(config.optimization.device)
-        act = act[:, : config.task.horizon, :]  # (B, horizon, act_dim)
+                info = agent.update(act, obs, delta_t)
+                lr_scheduler.step()
 
-        # update diffusion
-        delta_t_scalar = warmup_scheduler(n_gradient_step)
-        batch_size = act.shape[0]
-        delta_t = torch.full(
-            (batch_size,), delta_t_scalar, device=config.optimization.device
-        )
-        info = agent.update(act, obs, delta_t)
-        lr_scheduler.step()
-        info_list.append(info)
+            info_list.append(info)
 
         # log metrics
         if ((n_gradient_step + 1) % config.log.log_freq) == 0:
@@ -126,6 +156,25 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                     metrics[key] = np.nanmean([info[key] for info in info_list])
                 except Exception:
                     metrics[key] = np.nan
+
+            # Add performance metrics
+            if perf_times["total_step"]:
+                metrics["perf/data_load_ms"] = (
+                    np.mean(perf_times["data_load"][-config.log.log_freq :]) * 1000
+                )
+                metrics["perf/preprocess_ms"] = (
+                    np.mean(perf_times["preprocess"][-config.log.log_freq :]) * 1000
+                )
+                metrics["perf/update_ms"] = (
+                    np.mean(perf_times["update"][-config.log.log_freq :]) * 1000
+                )
+                metrics["perf/total_step_ms"] = (
+                    np.mean(perf_times["total_step"][-config.log.log_freq :]) * 1000
+                )
+                metrics["perf/steps_per_sec"] = 1.0 / np.mean(
+                    perf_times["total_step"][-config.log.log_freq :]
+                )
+
             logger.log(metrics, category="train")
             info_list = []
 
@@ -219,6 +268,14 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
     episode_success = []
     episode_kit_success = []
 
+    # Performance tracking for inference
+    inference_times = {
+        "normalize": [],
+        "sample": [],
+        "unnormalize": [],
+        "env_step": [],
+    }
+
     for i in range(config.log.eval_episodes // config.task.num_envs):
         ep_reward = [0.0] * config.task.num_envs
         obs, _ = envs.reset()
@@ -229,61 +286,67 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
             logger.video_init(envs.envs[0], enable=True, video_id=str(i))  # save videos
 
         while t < config.task.max_episode_steps:
-            if config.task.obs_type == "state":
-                obs = obs.astype(np.float32)  # (num_envs, obs_steps, obs_dim)
-                # normalize obs
-                obs = dataset.normalizer["obs"]["state"].normalize(obs)
-                obs = torch.tensor(
-                    obs, device=config.optimization.device, dtype=torch.float32
-                )  # (num_envs, obs_steps, obs_dim)
-                obs = {"state": obs}
-            else:  # image-based observation
-                obs_raw = obs
-                obs = {}
-                for k in obs_raw:
-                    obs[k] = obs_raw[k].astype(
-                        np.float32
+            with timed("normalize", inference_times):
+                if config.task.obs_type == "state":
+                    obs = obs.astype(np.float32)  # (num_envs, obs_steps, obs_dim)
+                    # normalize obs
+                    obs = dataset.normalizer["obs"]["state"].normalize(obs)
+                    obs = torch.tensor(
+                        obs, device=config.optimization.device, dtype=torch.float32
                     )  # (num_envs, obs_steps, obs_dim)
-                    obs[k] = dataset.normalizer["obs"][k].normalize(obs[k])
-                    obs[k] = torch.tensor(
-                        obs[k], device=config.optimization.device, dtype=torch.float32
-                    )  # (num_envs, obs_steps, obs_dim)
+                    obs = {"state": obs}
+                else:  # image-based observation
+                    obs_raw = obs
+                    obs = {}
+                    for k in obs_raw:
+                        obs[k] = obs_raw[k].astype(
+                            np.float32
+                        )  # (num_envs, obs_steps, obs_dim)
+                        obs[k] = dataset.normalizer["obs"][k].normalize(obs[k])
+                        obs[k] = torch.tensor(
+                            obs[k], device=config.optimization.device, dtype=torch.float32
+                        )  # (num_envs, obs_steps, obs_dim)
 
-            act_0 = torch.randn(
-                (config.task.num_envs, config.task.horizon, config.task.act_dim),
-                device=config.optimization.device,
-            )
+                act_0 = torch.randn(
+                    (config.task.num_envs, config.task.horizon, config.task.act_dim),
+                    device=config.optimization.device,
+                )
+
             # run sampling (num_envs, horizon, action_dim)
-            act_normed = agent.sample(
-                act_0=act_0,
-                obs=obs,
-                num_steps=num_steps,
-                use_ema=True,
-            )
+            with timed("sample", inference_times):
+                act_normed = agent.sample(
+                    act_0=act_0,
+                    obs=obs,
+                    num_steps=num_steps,
+                    use_ema=True,
+                )
 
             # unnormalize prediction
-            act_normed = (
-                act_normed.detach().to("cpu").numpy()
-            )  # (num_envs, horizon, action_dim)
-            act = dataset.normalizer["action"].unnormalize(act_normed)
+            with timed("unnormalize", inference_times):
+                act_normed = (
+                    act_normed.detach().to("cpu").numpy()
+                )  # (num_envs, horizon, action_dim)
+                act = dataset.normalizer["action"].unnormalize(act_normed)
 
-            # get action by slicing from start to end
-            start = config.task.obs_steps - 1
-            end = start + config.task.act_steps
-            act = act[:, start:end, :]
+                # get action by slicing from start to end
+                start = config.task.obs_steps - 1
+                end = start + config.task.act_steps
+                act = act[:, start:end, :]
 
-            if config.task.abs_action and config.task.env_name in [
-                "can",
-                "lift",
-                "square",
-                "tool_hang",
-                "transport",
-            ]:
-                act = dataset.undo_transform_action(act)
-            obs, reward, terminated, truncated, info = envs.step(act)
-            terminated | truncated
-            ep_reward += reward
-            t += config.task.act_steps
+                if config.task.abs_action and config.task.env_name in [
+                    "can",
+                    "lift",
+                    "square",
+                    "tool_hang",
+                    "transport",
+                ]:
+                    act = dataset.undo_transform_action(act)
+
+            with timed("env_step", inference_times):
+                obs, reward, terminated, truncated, info = envs.step(act)
+                _ = terminated | truncated
+                ep_reward += reward
+                t += config.task.act_steps
         success = [1.0 if s > 0 else 0.0 for s in ep_reward]
 
         # evaluate kitchen
@@ -302,15 +365,41 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         episode_steps.append(t)
         episode_success.append(success)
         episode_kit_success.append(kit_success)
+    # Log performance metrics
     loguru.logger.info(
-        f"Nstep: {num_steps} Mean step: {np.nanmean(episode_steps)} Mean reward: {np.nanmean(episode_rewards)} Mean success: {np.nanmean(episode_success)}"
+        f"Nstep: {num_steps} Mean step: {np.nanmean(episode_steps)} "
+        f"Mean reward: {np.nanmean(episode_rewards)} Mean success: {np.nanmean(episode_success)}"
     )
+
+    # Calculate inference performance
+    if inference_times["sample"]:
+        loguru.logger.info(
+            f"Inference perf - Normalize: {np.mean(inference_times['normalize'])*1000:.2f}ms, "
+            f"Sample: {np.mean(inference_times['sample'])*1000:.2f}ms, "
+            f"Unnormalize: {np.mean(inference_times['unnormalize'])*1000:.2f}ms, "
+            f"Env step: {np.mean(inference_times['env_step'])*1000:.2f}ms"
+        )
 
     metrics = {
         f"mean_step_{num_steps}": np.nanmean(episode_steps),
         f"mean_reward_{num_steps}": np.nanmean(episode_rewards),
         f"mean_success_{num_steps}": np.nanmean(episode_success),
     }
+
+    # Add inference performance metrics
+    if inference_times["sample"]:
+        metrics[f"perf/inference_normalize_ms_{num_steps}"] = (
+            np.mean(inference_times["normalize"]) * 1000
+        )
+        metrics[f"perf/inference_sample_ms_{num_steps}"] = (
+            np.mean(inference_times["sample"]) * 1000
+        )
+        metrics[f"perf/inference_unnormalize_ms_{num_steps}"] = (
+            np.mean(inference_times["unnormalize"]) * 1000
+        )
+        metrics[f"perf/inference_env_step_ms_{num_steps}"] = (
+            np.mean(inference_times["env_step"]) * 1000
+        )
 
     if "kitchen" in config.task.env_name:
         mean_kit_success = np.mean(np.array(episode_kit_success), axis=(0, 1))

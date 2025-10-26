@@ -213,3 +213,5 @@ data/
 logs/
 checkpoints/
 results/
+node_modules/
+cache/

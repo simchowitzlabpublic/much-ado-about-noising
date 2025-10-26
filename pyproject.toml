@@ -55,6 +55,13 @@ dev = [
     "ruff",
     "pytest>=8.0.0",
 ]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autodoc-typehints>=1.25.0",
+    "myst-parser>=2.0.0",
+    "sphinx-markdown-builder>=0.6.0",
+]
 
 [tool.ruff]
 # Same as Black.

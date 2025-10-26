@@ -1,0 +1,25 @@
+# Node modules for VitePress
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# VitePress build output
+.vitepress/dist
+.vitepress/cache
+.temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*

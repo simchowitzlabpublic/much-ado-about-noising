@@ -1,0 +1,15 @@
+{
+  "name": "mip-docs",
+  "version": "0.1.0",
+  "description": "Documentation for MIP (Minimum Iterative Policy)",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^2.0.0-alpha.12",
+    "vue": "^3.4.0"
+  }
+}

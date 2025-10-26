@@ -9,12 +9,12 @@ from mip.flow_map import FlowMap
 from mip.interpolant import Interpolant
 from mip.losses import (
     ctm_loss,
+    esd_loss,
     flow_loss,
     lmd_loss,
     lsd_loss,
-    mip_loss,
     mf_loss,
-    esd_loss,
+    mip_loss,
     psd_loss,
     regression_loss,
     tsd_loss,

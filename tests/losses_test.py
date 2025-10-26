@@ -13,6 +13,8 @@ from mip.losses import (
     lmd_loss,
     lsd_loss,
     mip_loss,
+    mf_loss,
+    esd_loss,
     psd_loss,
     regression_loss,
     tsd_loss,
@@ -231,6 +233,43 @@ class TestLossFunctions:
         assert len(aux) == 2
         assert "flow_loss" in aux
         assert "lsd_term" in aux
+
+    def test_mf_loss_output_shape(self, setup):
+        """Test MF loss returns correct output shape."""
+        loss, aux = mf_loss(
+            setup["config"],
+            setup["flow_map"],
+            setup["encoder"],
+            setup["interp"],
+            setup["act"],
+            setup["obs"],
+            setup["delta_t"],
+        )
+
+        assert isinstance(loss, torch.Tensor)
+        assert loss.dim() == 0
+        assert isinstance(aux, dict)
+        assert len(aux) == 2
+        assert "flow_loss" in aux
+        assert "mf_term" in aux
+
+    def test_esd_loss_output_shape(self, setup):
+        """Test ESD loss returns correct output shape."""
+        loss, aux = esd_loss(
+            setup["config"],
+            setup["flow_map"],
+            setup["encoder"],
+            setup["interp"],
+            setup["act"],
+            setup["obs"],
+            setup["delta_t"],
+        )
+        assert isinstance(loss, torch.Tensor)
+        assert loss.dim() == 0
+        assert isinstance(aux, dict)
+        assert len(aux) == 2
+        assert "flow_loss" in aux
+        assert "esd_term" in aux
 
     def test_flow_loss_gradient_flow(self, setup):
         """Test that gradients flow through flow loss."""

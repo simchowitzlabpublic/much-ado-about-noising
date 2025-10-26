@@ -92,9 +92,7 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                 )
         elif config.task.obs_type == "state":
             obs = batch["obs"]["state"].to(config.optimization.device)
-            obs = obs[
-                :, : config.task.obs_steps, :
-            ]  # (B, obs_horizon, obs_dim)
+            obs = obs[:, : config.task.obs_steps, :]  # (B, obs_horizon, obs_dim)
         elif config.task.obs_type == "keypoint":
             obs_batch = batch["obs"]
             obs = {}

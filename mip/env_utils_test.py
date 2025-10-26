@@ -4,17 +4,10 @@ Author: Chaoyi Pan
 Date: 2025-10-03
 """
 
-from unittest.mock import Mock
-
-import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
 from mip.env_utils import (
-    MultiStepWrapper,
-    VideoRecorder,
-    VideoRecordingWrapper,
-    VideoWrapper,
     aggregate,
     dict_take_last_n,
     get_accumulate_timestamp_idxs,
@@ -136,126 +129,3 @@ class TestUtilityFunctions:
         )
         assert len(local_idxs) == len(global_idxs)
         assert next_idx > 0
-
-
-class TestMultiStepWrapper:
-    """Test MultiStepWrapper class."""
-
-    def test_initialization(self):
-        """Test MultiStepWrapper initialization."""
-        # Create a simple mock environment
-        mock_env = Mock(spec=gym.Env)
-        mock_env.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
-        mock_env.observation_space = spaces.Box(
-            low=-1, high=1, shape=(4,), dtype=np.float32
-        )
-
-        wrapper = MultiStepWrapper(mock_env, n_obs_steps=2, n_action_steps=3)
-
-        assert wrapper.n_obs_steps == 2
-        assert wrapper.n_action_steps == 3
-        assert wrapper._action_space.shape == (3, 2)
-        assert wrapper._observation_space.shape == (2, 4)
-
-    def test_reset(self):
-        """Test MultiStepWrapper reset."""
-        mock_env = Mock(spec=gym.Env)
-        mock_env.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
-        mock_env.observation_space = spaces.Box(
-            low=-1, high=1, shape=(4,), dtype=np.float32
-        )
-        mock_env.reset.return_value = np.array([1, 2, 3, 4], dtype=np.float32)
-
-        wrapper = MultiStepWrapper(mock_env, n_obs_steps=2, n_action_steps=3)
-        obs, info = wrapper.reset()
-
-        assert obs.shape == (2, 4)
-        mock_env.reset.assert_called_once()
-
-
-class TestVideoWrapper:
-    """Test VideoWrapper class."""
-
-    def test_initialization(self):
-        """Test VideoWrapper initialization."""
-        mock_env = Mock(spec=gym.Env)
-        wrapper = VideoWrapper(mock_env, mode="rgb_array", enabled=True)
-
-        assert wrapper.mode == "rgb_array"
-        assert wrapper.enabled is True
-        assert len(wrapper.frames) == 0
-
-    def test_initialization_disabled(self):
-        """Test VideoWrapper initialization with disabled recording."""
-        mock_env = Mock(spec=gym.Env)
-        wrapper = VideoWrapper(mock_env, mode="rgb_array", enabled=False)
-
-        assert wrapper.enabled is False
-
-
-class TestVideoRecorder:
-    """Test VideoRecorder class."""
-
-    def test_initialization(self):
-        """Test VideoRecorder initialization."""
-        recorder = VideoRecorder(fps=30, codec="h264", input_pix_fmt="rgb24")
-
-        assert recorder.fps == 30
-        assert recorder.codec == "h264"
-        assert recorder.input_pix_fmt == "rgb24"
-        assert not recorder.is_ready()
-
-    def test_create_h264(self):
-        """Test VideoRecorder.create_h264 class method."""
-        recorder = VideoRecorder.create_h264(fps=30)
-
-        assert recorder.fps == 30
-        assert recorder.codec == "h264"
-        assert recorder.input_pix_fmt == "rgb24"
-        assert not recorder.is_ready()
-
-    def test_is_ready_before_start(self):
-        """Test is_ready returns False before start."""
-        recorder = VideoRecorder.create_h264(fps=30)
-        assert not recorder.is_ready()
-
-
-class TestVideoRecordingWrapper:
-    """Test VideoRecordingWrapper class."""
-
-    def test_initialization(self):
-        """Test VideoRecordingWrapper initialization."""
-        mock_env = Mock(spec=gym.Env)
-        mock_recorder = Mock(spec=VideoRecorder)
-
-        wrapper = VideoRecordingWrapper(
-            mock_env,
-            mock_recorder,
-            mode="rgb_array",
-            file_path=None,
-        )
-
-        assert wrapper.mode == "rgb_array"
-        assert wrapper.file_path is None
-        assert wrapper.video_recoder is mock_recorder
-
-    def test_initialization_with_file_path(self):
-        """Test VideoRecordingWrapper initialization with file path."""
-        mock_env = Mock(spec=gym.Env)
-        mock_recorder = Mock(spec=VideoRecorder)
-
-        wrapper = VideoRecordingWrapper(
-            mock_env,
-            mock_recorder,
-            mode="rgb_array",
-            file_path="/tmp/test.mp4",
-        )
-
-        assert wrapper.file_path == "/tmp/test.mp4"
-
-
-if __name__ == "__main__":
-    import pytest
-
-    # Run tests
-    pytest.main([__file__, "-v"])

@@ -16,13 +16,7 @@ This repository contains the code for the paper **"Much Ado About Noising: Dispe
 
 ## Documentation
 
-- 📚 **[Full Documentation](docs/)** - Comprehensive guides and API reference
-- 🚀 **[Quick Start](docs/getting-started/quick_start.md)** - Get running in minutes
-- 🏗️ **[Architecture Guide](docs/getting-started/design.md)** - Framework internals
-- 🔧 **[Configuration](docs/getting-started/configuration.md)** - Detailed configuration guide
-- 🛠️ **[Development Guides](docs/development/)** - Extend MIP with custom tasks and methods
-- 💡 **[FAQ](docs/help/faq.md)** - Frequently asked questions
-- 🔍 **[Troubleshooting](docs/help/troubleshooting.md)** - Common issues and solutions
+Please refer to the [documentation](https://jc-bao.github.io/mip/) for more details.
 
 ## Installation
 

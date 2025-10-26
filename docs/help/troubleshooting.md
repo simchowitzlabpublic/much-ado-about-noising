@@ -2,7 +2,13 @@
 
 This page covers common issues and their solutions when working with MIP.
 
-### CUDA Graphs Not Working
+## Loss Doesn't Work
+
+**Problem**: Mean Flow, Lagrangian Self-Distillation, Euler Self-Distillation don't work with transformer.
+
+**Solutions**: This is a know issue with torch, consider use UNet instead.
+
+## CUDA Graphs Not Working
 
 **Problem**: `use_cudagraphs=true` has no effect or crashes
 
@@ -17,9 +23,7 @@ This page covers common issues and their solutions when working with MIP.
 3. **Inconsistent batch sizes**: DataLoader must have `drop_last=True`
    - Already set in training scripts, verify if using custom script
 
-## Dataset Issues
-
-### Dataset Not Found
+## Dataset Not Found
 
 **Problem**: `FileNotFoundError: Dataset not found`
 

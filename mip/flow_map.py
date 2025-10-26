@@ -89,6 +89,51 @@ class FlowMap(nn.Module):
             (torch.tensor(1.0, device=xs.device),),
         )
 
+    def jvp_s_single(
+        self,
+        s: torch.Tensor,
+        t: torch.Tensor,
+        xs: torch.Tensor,
+        label: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute Jacobian-vector product with respect to s for a single sample.
+
+        Uses jvp to compute the forward pass and partial derivative with respect to s
+        at the same time, which can save computation.
+        """
+
+        def f_single_wrapped(s_input):
+            return self.forward_single(s_input, t, xs, label)
+
+        return torch.func.jvp(
+            f_single_wrapped,
+            (s,),
+            (torch.tensor(1.0, device=xs.device),),
+        )
+
+    def jvp_x_single(
+        self,
+        s: torch.Tensor,
+        t: torch.Tensor,
+        xs: torch.Tensor,
+        tangent: torch.Tensor,
+        label: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute Jacobian-vector product with respect to x for a single sample.
+
+        Uses jvp to compute the forward pass and partial derivative with respect to x
+        at the same time, which can save computation.
+        """
+
+        def f_single_wrapped(xs_input):
+            return self.forward_single(s, t, xs_input, label)
+
+        return torch.func.jvp(
+            f_single_wrapped,
+            (xs,),
+            (tangent,),
+        )
+
     def jvp_t(
         self,
         s: torch.Tensor,
@@ -97,7 +142,30 @@ class FlowMap(nn.Module):
         label: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute batched Jacobian-vector product with respect to t using vmap."""
-        return torch.func.vmap(self.jvp_t_single)(s, t, xs, label)
+        return torch.func.vmap(self.jvp_t_single, randomness="same")(s, t, xs, label)
+
+    def jvp_s(
+        self,
+        s: torch.Tensor,
+        t: torch.Tensor,
+        xs: torch.Tensor,
+        label: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute batched Jacobian-vector product with respect to s using vmap."""
+        return torch.func.vmap(self.jvp_s_single, randomness="same")(s, t, xs, label)
+
+    def jvp_x(
+        self,
+        s: torch.Tensor,
+        t: torch.Tensor,
+        xs: torch.Tensor,
+        tangent: torch.Tensor,
+        label: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute batched Jacobian-vector product with respect to x using vmap."""
+        return torch.func.vmap(self.jvp_x_single, randomness="same")(
+            s, t, xs, tangent, label
+        )
 
     def get_velocity(self, t, xs, label):
         """Get the velocity field of the flow."""

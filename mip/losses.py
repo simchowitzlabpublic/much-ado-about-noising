@@ -36,6 +36,10 @@ def get_loss_fn(loss_type: str) -> Callable:
         return psd_loss
     elif loss_type == "lsd":
         return lsd_loss
+    elif loss_type == "esd":
+        return esd_loss
+    elif loss_type == "mf":
+        return mf_loss
     else:
         raise NotImplementedError(f"Loss type {loss_type} not implemented.")
 
@@ -396,4 +400,131 @@ def lsd_loss(
     return total_loss, {
         "flow_loss": flow_matching_loss.item(),
         "lsd_term": lsd_term.item(),
+    }
+
+
+def esd_loss(
+    config: OptimizationConfig,
+    flow_map: FlowMap,
+    encoder: BaseEncoder,
+    interp: Interpolant,
+    act: torch.Tensor,
+    obs: torch.Tensor,
+    delta_t: torch.Tensor,
+) -> float:
+    """Euler self-distillation loss."""
+    # ========== Flow matching loss ==========
+    # sample
+    t_flow = torch.empty_like(delta_t).uniform_(0, 1)
+    act_0 = torch.empty_like(act).normal_(0, 1)
+    act_1 = act
+
+    # get condition
+    obs_emb = encoder(obs, None)
+
+    # predict
+    act_t = interp.calc_It(t_flow, act_0, act_1)
+    act_t_dot = interp.calc_It_dot(t_flow, act_0, act_1)
+    b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
+
+    # compute flow loss
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
+
+    # ========== ESD term ==========
+    # sample s, t like lmd loss
+    temp_batch_1 = torch.empty_like(delta_t).uniform_(0, 1)
+    temp_batch_2 = torch.empty_like(delta_t).uniform_(0, 1)
+    s = torch.minimum(temp_batch_1, temp_batch_2)
+    t = torch.maximum(temp_batch_1, temp_batch_2)
+    s = torch.maximum(s, t - delta_t)
+
+    # get interpolated starting point
+    Is = interp.calc_It(s, act_0, act_1)
+
+    # compute Xst and ds_Xst using jvp_t
+    xst, ds_xst = flow_map.jvp_s(s, t, Is, obs_emb)
+
+    # compute the velocity field at the endpoint (stopgrad)
+    with torch.no_grad():
+        b_eval = flow_map.get_velocity(t, xst, obs_emb)
+
+    # compute jvp
+    _, grad_xst_b = flow_map.jvp_x(s, t, Is, b_eval, obs_emb)
+
+    # esd loss
+    error = ds_xst + grad_xst_b
+    esd_term = get_norm(error, config.norm_type) ** 2
+    esd_term = config.loss_scale * torch.mean(esd_term)
+
+    # combine losses
+    total_loss = flow_matching_loss + esd_term
+
+    return total_loss, {
+        "flow_loss": flow_matching_loss.item(),
+        "esd_term": esd_term.item(),
+    }
+
+
+def mf_loss(
+    config: OptimizationConfig,
+    flow_map: FlowMap,
+    encoder: BaseEncoder,
+    interp: Interpolant,
+    act: torch.Tensor,
+    obs: torch.Tensor,
+    delta_t: torch.Tensor,
+) -> float:
+    """Mean flow loss."""
+    # ========== Flow matching loss ==========
+    # sample
+    t_flow = torch.empty_like(delta_t).uniform_(0, 1)
+    act_0 = torch.empty_like(act).normal_(0, 1)
+    act_1 = act
+
+    # get condition
+    obs_emb = encoder(obs, None)
+
+    # predict
+    act_t = interp.calc_It(t_flow, act_0, act_1)
+    act_t_dot = interp.calc_It_dot(t_flow, act_0, act_1)
+    b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
+
+    # compute flow loss
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
+
+    # ========== Mean flow term ==========
+    # sample s, t
+    temp_batch_1 = torch.empty_like(delta_t).uniform_(0, 1)
+    temp_batch_2 = torch.empty_like(delta_t).uniform_(0, 1)
+    s = torch.minimum(temp_batch_1, temp_batch_2)
+    t = torch.maximum(temp_batch_1, temp_batch_2)
+    s = torch.maximum(s, t - delta_t)
+
+    # get interpolated starting point
+    Is = interp.calc_It(s, act_0, act_1)
+    dot_Is = interp.calc_It_dot(s, act_0, act_1)
+
+    # compute Xst and ds_Xst using jvp_t
+    xst, ds_xst = flow_map.jvp_s(s, t, Is, obs_emb)
+
+    # compute the velocity field at the endpoint (stopgrad)
+    with torch.no_grad():
+        # Difference 1: use dot_Is instead of b_eval
+        # Difference 2: also disable gradient for jvp_x
+        # compute jvp
+        _, grad_xst_b = flow_map.jvp_x(s, t, Is, dot_Is, obs_emb)
+
+    # mf loss
+    error = ds_xst + grad_xst_b
+    mf_term = get_norm(error, config.norm_type) ** 2
+    mf_term = config.loss_scale * torch.mean(mf_term)
+
+    # combine losses
+    total_loss = flow_matching_loss + mf_term
+
+    return total_loss, {
+        "flow_loss": flow_matching_loss.item(),
+        "mf_term": mf_term.item(),
     }

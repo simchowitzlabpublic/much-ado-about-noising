@@ -180,7 +180,10 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                         "eval_history": eval_history,
                     }
                     logger.save_global_checkpoint(
-                        agent, checkpoint_base_name, success_rate, training_state=training_state
+                        agent,
+                        checkpoint_base_name,
+                        success_rate,
+                        training_state=training_state,
                     )
 
             # Add best and average metrics to current metrics for logging
@@ -369,8 +372,6 @@ def main(config):
     if config.mode == "train":
         train(config, envs, dataset, agent, logger, resume_state=resume_state)
     elif config.mode == "eval":
-        if not config.optimization.model_path:
-            raise ValueError("Empty model for inference")
         agent.eval()
 
         num_steps_list = get_default_step_list(config.optimization.loss_type)

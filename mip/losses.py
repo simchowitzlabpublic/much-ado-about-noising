@@ -61,9 +61,9 @@ def flow_loss(
     Returns:
         float: the loss
     """
-    # sample
-    t = torch.rand_like(delta_t, device=delta_t.device)
-    act_0 = torch.randn_like(act, device=act.device)
+    # sample - use empty+uniform_/normal_ for CUDA graph compatibility
+    t = torch.empty_like(delta_t).uniform_(0, 1)
+    act_0 = torch.empty_like(act).normal_(0, 1)
     act_1 = act
 
     # get condition
@@ -119,8 +119,8 @@ def tsd_loss(
     # sample
     s = torch.zeros_like(delta_t, device=delta_t.device)
     t = torch.zeros_like(delta_t, device=delta_t.device) + config.t_two_step
-    act_0 = torch.randn_like(act, device=act.device)
-    noise = torch.randn_like(act, device=act.device)
+    act_0 = torch.empty_like(act).normal_(0, 1)
+    noise = torch.empty_like(act).normal_(0, 1)
     act_t = act + (1 - config.t_two_step) * noise
 
     # get condition
@@ -156,7 +156,7 @@ def mip_loss(
     t = torch.zeros_like(delta_t, device=delta_t.device) + config.t_two_step
     # major difference compared to tsd: remove stochasticity in input
     act_0 = torch.zeros_like(act, device=act.device)
-    noise = torch.randn_like(act, device=act.device)
+    noise = torch.empty_like(act).normal_(0, 1)
     act_t = act + (1 - config.t_two_step) * noise
 
     # get condition
@@ -189,12 +189,12 @@ def lmd_loss(
 ) -> float:
     """Lagrangian map matching loss for distillation."""
     # sample
-    temp_batch_1 = torch.rand_like(delta_t, device=delta_t.device)
-    temp_batch_2 = torch.rand_like(delta_t, device=delta_t.device)
+    temp_batch_1 = torch.empty_like(delta_t).uniform_(0, 1)
+    temp_batch_2 = torch.empty_like(delta_t).uniform_(0, 1)
     s = torch.minimum(temp_batch_1, temp_batch_2)
     t = torch.maximum(temp_batch_1, temp_batch_2)
     s = torch.maximum(s, t - delta_t)
-    act_0 = torch.randn_like(act, device=act.device)
+    act_0 = torch.empty_like(act).normal_(0, 1)
     act_1 = act
 
     # get condition
@@ -227,14 +227,14 @@ def ctm_loss(
 ) -> float:
     """Consistency trajectory model loss."""
     # sample
-    temp_batch_1 = torch.rand_like(delta_t, device=delta_t.device)
-    temp_batch_2 = torch.rand_like(delta_t, device=delta_t.device)
+    temp_batch_1 = torch.empty_like(delta_t).uniform_(0, 1)
+    temp_batch_2 = torch.empty_like(delta_t).uniform_(0, 1)
     s = torch.minimum(temp_batch_1, temp_batch_2)
     t = torch.maximum(temp_batch_1, temp_batch_2)
     s = torch.maximum(s, t - delta_t)
     s_plus = s + config.discrete_dt
     t = torch.maximum(t, s_plus)
-    act_0 = torch.randn_like(act, device=act.device)
+    act_0 = torch.empty_like(act).normal_(0, 1)
     act_1 = act
 
     # get condition
@@ -275,8 +275,8 @@ def psd_loss(
     """
     # ========== Flow matching loss ==========
     # sample
-    t_flow = torch.rand_like(delta_t, device=delta_t.device)
-    act_0 = torch.randn_like(act, device=act.device)
+    t_flow = torch.empty_like(delta_t).uniform_(0, 1)
+    act_0 = torch.empty_like(act).normal_(0, 1)
     act_1 = act
 
     # get condition
@@ -293,14 +293,14 @@ def psd_loss(
 
     # ========== PSD term ==========
     # sample s, t, u like lmd loss
-    temp_batch_1 = torch.rand_like(delta_t, device=delta_t.device)
-    temp_batch_2 = torch.rand_like(delta_t, device=delta_t.device)
+    temp_batch_1 = torch.empty_like(delta_t).uniform_(0, 1)
+    temp_batch_2 = torch.empty_like(delta_t).uniform_(0, 1)
     s = torch.minimum(temp_batch_1, temp_batch_2)
     t = torch.maximum(temp_batch_1, temp_batch_2)
     s = torch.maximum(s, t - delta_t)
 
     # sample u uniformly between s and t
-    h = torch.rand_like(delta_t, device=delta_t.device)
+    h = torch.empty_like(delta_t).uniform_(0, 1)
     u = s + h * (t - s)
 
     # get interpolated starting point
@@ -352,8 +352,8 @@ def lsd_loss(
     """
     # ========== Flow matching loss ==========
     # sample
-    t_flow = torch.rand_like(delta_t, device=delta_t.device)
-    act_0 = torch.randn_like(act, device=act.device)
+    t_flow = torch.empty_like(delta_t).uniform_(0, 1)
+    act_0 = torch.empty_like(act).normal_(0, 1)
     act_1 = act
 
     # get condition
@@ -370,8 +370,8 @@ def lsd_loss(
 
     # ========== LSD term ==========
     # sample s, t like lmd loss
-    temp_batch_1 = torch.rand_like(delta_t, device=delta_t.device)
-    temp_batch_2 = torch.rand_like(delta_t, device=delta_t.device)
+    temp_batch_1 = torch.empty_like(delta_t).uniform_(0, 1)
+    temp_batch_2 = torch.empty_like(delta_t).uniform_(0, 1)
     s = torch.minimum(temp_batch_1, temp_batch_2)
     t = torch.maximum(temp_batch_1, temp_batch_2)
     s = torch.maximum(s, t - delta_t)

@@ -18,15 +18,17 @@ class _SimpleTransformerEncoder(nn.Module):
 
     def __init__(self, encoder_layer, num_layers):
         super().__init__()
-        self.layers = nn.ModuleList([
-            copy.deepcopy(encoder_layer) for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [copy.deepcopy(encoder_layer) for _ in range(num_layers)]
+        )
         self.num_layers = num_layers
 
     def forward(self, src, mask=None, src_key_padding_mask=None):
         output = src
         for layer in self.layers:
-            output = layer(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+            output = layer(
+                output, src_mask=mask, src_key_padding_mask=src_key_padding_mask
+            )
         return output
 
 
@@ -35,18 +37,30 @@ class _SimpleTransformerDecoder(nn.Module):
 
     def __init__(self, decoder_layer, num_layers):
         super().__init__()
-        self.layers = nn.ModuleList([
-            copy.deepcopy(decoder_layer) for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [copy.deepcopy(decoder_layer) for _ in range(num_layers)]
+        )
         self.num_layers = num_layers
 
-    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
-                tgt_key_padding_mask=None, memory_key_padding_mask=None):
+    def forward(
+        self,
+        tgt,
+        memory,
+        tgt_mask=None,
+        memory_mask=None,
+        tgt_key_padding_mask=None,
+        memory_key_padding_mask=None,
+    ):
         output = tgt
         for layer in self.layers:
-            output = layer(output, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
-                          tgt_key_padding_mask=tgt_key_padding_mask,
-                          memory_key_padding_mask=memory_key_padding_mask)
+            output = layer(
+                output,
+                memory,
+                tgt_mask=tgt_mask,
+                memory_mask=memory_mask,
+                tgt_key_padding_mask=tgt_key_padding_mask,
+                memory_key_padding_mask=memory_key_padding_mask,
+            )
         return output
 
 
@@ -241,7 +255,7 @@ class ChiTransformer(BaseNetwork):
         t_idx, s_idx = torch.meshgrid(
             torch.arange(self.T, device=device),
             torch.arange(S, device=device),
-            indexing="ij"
+            indexing="ij",
         )
         memory_mask = t_idx >= (s_idx - 1)
         memory_mask = (

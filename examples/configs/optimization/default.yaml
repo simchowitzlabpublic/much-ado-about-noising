@@ -23,7 +23,7 @@ max_value: 1.0
 model_path: null
 interp_type: "linear"
 device: "cuda"
-use_compile: true
-compile_mode: null  # Compile mode: null, "default", "reduce-overhead", "max-autotune"
-use_cudagraphs: true  # Whether to use CUDA graphs (requires static shapes)
+use_compile: false
+compile_mode: null # Compile mode: null, "default", "reduce-overhead", "max-autotune"
+use_cudagraphs: false # Whether to use CUDA graphs (requires static shapes)
 auto_resume: true

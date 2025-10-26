@@ -206,11 +206,9 @@ def crop_image_from_indices(images, crop_indices, crop_height, crop_width):
     image_c, image_h, image_w = images.shape[-3:]
     num_crops = crop_indices.shape[-2]
 
-    # make sure @crop_indices are in valid range
-    assert (crop_indices[..., 0] >= 0).all().item()
-    assert (crop_indices[..., 0] < (image_h - crop_height)).all().item()
-    assert (crop_indices[..., 1] >= 0).all().item()
-    assert (crop_indices[..., 1] < (image_w - crop_width)).all().item()
+    # Skip assertions for torch.compile compatibility
+    # Validation: crop_indices should be in valid range [0, H-CH) x [0, W-CW)
+    # These checks are skipped to avoid graph breaks from .item() calls
 
     # convert each crop index (ch, cw) into a list of pixel indices that correspond to the entire window.
 
@@ -706,16 +704,8 @@ class MultiImageObsEncoder(BaseEncoder):
 
     def multi_image_forward(self, obs_dict):
         batch_size = None
+        seq_len = None
         features = []
-
-        # Convert TensorDict to regular dict if needed
-        if hasattr(obs_dict, 'to_dict'):
-            obs_dict = {k: v for k, v in obs_dict.items()}
-
-        if self.use_seq:
-            # input: (bs, horizon, c, h, w)
-            for k in obs_dict:
-                obs_dict[k] = obs_dict[k].flatten(end_dim=1)
 
         # process rgb input
         if self.share_rgb_model:
@@ -723,11 +713,16 @@ class MultiImageObsEncoder(BaseEncoder):
             imgs = []
             for key in self.rgb_keys:
                 img = obs_dict[key]
-                if batch_size is None:
-                    batch_size = img.shape[0]
+                # Flatten if use_seq without mutating input - use view instead of flatten
+                if self.use_seq:
+                    if batch_size is None:
+                        batch_size = img.shape[0]
+                        seq_len = img.shape[1]
+                    # Use view with explicit dimensions instead of flatten
+                    img = img.view(batch_size * seq_len, *img.shape[2:])
                 else:
-                    assert batch_size == img.shape[0]
-                assert img.shape[1:] == self.key_shape_map[key]
+                    if batch_size is None:
+                        batch_size = img.shape[0]
                 img = self.key_transform_map[key](img)
                 imgs.append(img)
             # (N*B,C,H,W)
@@ -735,21 +730,28 @@ class MultiImageObsEncoder(BaseEncoder):
             # (N*B,D)
             feature = self.key_model_map["rgb"](imgs)
             # (N,B,D)
-            feature = feature.reshape(-1, batch_size, *feature.shape[1:])
+            num_keys = len(self.rgb_keys)
+            feature_dim = feature.shape[-1]
+            feature = feature.view(num_keys, batch_size if not self.use_seq else batch_size * seq_len, feature_dim)
             # (B,N,D)
             feature = torch.moveaxis(feature, 0, 1)
             # (B,N*D)
-            feature = feature.reshape(batch_size, -1)
+            feature = feature.reshape(batch_size if not self.use_seq else batch_size * seq_len, -1)
             features.append(feature)
         else:
             # run each rgb obs to independent models
             for key in self.rgb_keys:
                 img = obs_dict[key]
-                if batch_size is None:
-                    batch_size = img.shape[0]
+                # Flatten if use_seq without mutating input - use view instead of flatten
+                if self.use_seq:
+                    if batch_size is None:
+                        batch_size = img.shape[0]
+                        seq_len = img.shape[1]
+                    # Use view with explicit dimensions instead of flatten
+                    img = img.view(batch_size * seq_len, *img.shape[2:])
                 else:
-                    assert batch_size == img.shape[0]
-                assert img.shape[1:] == self.key_shape_map[key]
+                    if batch_size is None:
+                        batch_size = img.shape[0]
                 img = self.key_transform_map[key](img)
                 feature = self.key_model_map[key](img)
                 features.append(feature)
@@ -757,27 +759,32 @@ class MultiImageObsEncoder(BaseEncoder):
         # process lowdim input
         for key in self.low_dim_keys:
             data = obs_dict[key]
-            if batch_size is None:
-                batch_size = data.shape[0]
+            # Flatten if use_seq without mutating input - use view instead of flatten
+            if self.use_seq:
+                if batch_size is None:
+                    batch_size = data.shape[0]
+                    seq_len = data.shape[1]
+                # Use view with explicit dimensions instead of flatten
+                data = data.view(batch_size * seq_len, *data.shape[2:])
             else:
-                assert batch_size == data.shape[0]
-            assert data.shape[1:] == self.key_shape_map[key]
+                if batch_size is None:
+                    batch_size = data.shape[0]
             features.append(data)
 
         # concatenate all features
         features = torch.cat(features, dim=-1)
-        return features
+        return features, batch_size, seq_len
 
     def forward(self, obs_dict, mask=None):
-        ori_batch_size, ori_seq_len = self.get_batch_size(obs_dict)
-        features = self.multi_image_forward(obs_dict)
+        # obs_dict can be TensorDict or dict - both work the same for key access
+        features, batch_size, seq_len = self.multi_image_forward(obs_dict)
         # linear embedding
         result = self.mlp(features)
         if self.use_seq:
             if self.keep_horizon_dims:
-                result = result.reshape(ori_batch_size, ori_seq_len, -1)
+                result = result.view(batch_size, seq_len, -1)
             else:
-                result = result.reshape(ori_batch_size, -1)
+                result = result.view(batch_size, -1)
         return result
 
     @torch.no_grad()
@@ -790,13 +797,19 @@ class MultiImageObsEncoder(BaseEncoder):
             prefix = (batch_size, 1) if self.use_seq else (batch_size,)
             this_obs = torch.zeros(prefix + shape, dtype=self.dtype, device=self.device)
             example_obs_dict[key] = this_obs
-        example_output = self.multi_image_forward(example_obs_dict)
+        example_output, _, _ = self.multi_image_forward(example_obs_dict)
         output_shape = example_output.shape[1:]
         return output_shape[0]
 
     def get_batch_size(self, obs_dict):
-        any_key = next(iter(obs_dict.keys()))
-        any_tensor = obs_dict.get(any_key)
+        # Access the first available key directly for torch.compile compatibility
+        # Use rgb_keys or low_dim_keys which are static attributes
+        if self.rgb_keys:
+            any_tensor = obs_dict[self.rgb_keys[0]]
+        elif self.low_dim_keys:
+            any_tensor = obs_dict[self.low_dim_keys[0]]
+        else:
+            raise ValueError("No observation keys found")
         return any_tensor.size(0), any_tensor.size(1)
 
     @property

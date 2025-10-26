@@ -4,6 +4,7 @@ Ported from https://github.com/CleanDiffuserTeam/CleanDiffuser
 """
 
 import collections
+import os
 import random
 
 import numpy as np
@@ -1028,3 +1029,32 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
+
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.deterministic = False
+
+
+def limit_threads(n: int):
+    os.environ["OMP_NUM_THREADS"] = str(n)
+    os.environ["MKL_NUM_THREADS"] = str(n)
+    os.environ["OPENBLAS_NUM_THREADS"] = str(n)
+    os.environ["VECLIB_MAXIMUM_THREADS"] = str(n)
+    os.environ["NUMEXPR_NUM_THREADS"] = str(n)
+
+
+def tensordict_to_dict(obs):
+    """Convert TensorDict to regular dict for torch.compile compatibility.
+
+    TensorDict can cause issues with CUDA graphs due to internal copy operations.
+    This function extracts tensors into a plain dict.
+
+    Args:
+        obs: Either a TensorDict or regular dict/tensor
+
+    Returns:
+        Regular dict if input was TensorDict, otherwise returns input unchanged
+    """
+    if hasattr(obs, "to_dict"):
+        # It's a TensorDict - convert to regular dict without nested structure
+        return {k: v for k, v in obs.items()}
+    return obs

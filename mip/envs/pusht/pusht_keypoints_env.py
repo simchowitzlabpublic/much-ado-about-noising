@@ -1,7 +1,7 @@
 from typing import Dict, Sequence, Union, Optional
 from gymnasium import spaces
 from mip.envs.pusht.pusht_env import PushTEnv
-from cleandiffuser.env.pusht.pymunk_keypoint_manager import PymunkKeypointManager
+from mip.envs.pusht.pymunk_keypoint_manager import PymunkKeypointManager
 import numpy as np
 
 

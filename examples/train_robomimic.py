@@ -42,7 +42,7 @@ from mip.envs.robomimic.robomimic_env import make_vec_env
 from mip.logger import Logger, compute_average_metrics, update_best_metrics
 from mip.samplers import get_default_step_list
 from mip.scheduler import WarmupAnnealingScheduler
-from mip.torch_utils import set_seed
+from mip.torch_utils import set_seed, limit_threads
 
 
 def train(config: Config, envs, dataset, agent, logger, resume_state=None):
@@ -120,13 +120,18 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
 
             # preprocess data
             with timed("preprocess", perf_times):
+                from tensordict import TensorDict
+
                 if config.task.obs_type == "image":
                     obs_batch = batch["obs"]
-                    obs = {}
+                    obs_dict = {}
                     for k in obs_batch:
-                        obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
+                        obs_dict[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
                             config.optimization.device
                         )
+                    # Convert to TensorDict for consistent handling throughout pipeline
+                    batch_size = next(iter(obs_dict.values())).shape[0]
+                    obs = TensorDict(obs_dict, batch_size=batch_size)
                 elif config.task.obs_type == "state":
                     obs = batch["obs"]["state"].to(config.optimization.device)
                     obs = obs[
@@ -427,8 +432,16 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
 @hydra.main(version_base=None, config_path="configs/", config_name="main")
 def main(config):
     """Main pipeline function that calls the appropriate standalone function based on mode."""
+    os.environ["TORCHDYNAMO_INLINE_INBUILT_NN_MODULES"] = "1"
+
+    if torch.cuda.is_available():
+        torch.cuda.set_sync_debug_mode("warn")
+        # from torch/rl, compile use tensor cores for float32 matrix multiplication
+        torch.set_float32_matmul_precision("high")
+
     # general config setup
     set_seed(config.optimization.seed)
+    limit_threads(1)
     logger = Logger(config)
     loguru.logger.info("Finished setting up logger")
 
@@ -462,7 +475,7 @@ def main(config):
     if config.optimization.model_path and config.optimization.model_path != "None":
         loguru.logger.info(f"Loading model from {config.optimization.model_path}")
         resume_state = agent.load(config.optimization.model_path, load_optimizer=True)
-    elif config.mode == "train" and config.optimization.auto_resume:
+    elif config.optimization.auto_resume:
         # Automatically look for checkpoint to resume from
         checkpoint_base_name = (
             f"{config.task.env_name}_{config.task.env_type}_{config.task.obs_type}_"
@@ -482,8 +495,6 @@ def main(config):
     if config.mode == "train":
         train(config, envs, dataset, agent, logger, resume_state=resume_state)
     elif config.mode == "eval":
-        if not config.optimization.model_path:
-            raise ValueError("Empty model for inference")
         agent.eval()
 
         num_steps_list = get_default_step_list(config.optimization.loss_type)

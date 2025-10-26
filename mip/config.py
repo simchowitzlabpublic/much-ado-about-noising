@@ -39,7 +39,9 @@ class OptimizationConfig:
     interp_type: str = "linear"  # "linear" or "trig"
     device: str = "cuda"
     use_compile: bool = True  # Whether to use torch.compile for acceleration
-    compile_mode: str = "default"  # Compile mode: "default", "reduce-overhead", "max-autotune"
+    compile_mode: str = (
+        "default"  # Compile mode: "default", "reduce-overhead", "max-autotune"
+    )
     use_cudagraphs: bool = False  # Whether to use CUDA graphs (requires static shapes)
     auto_resume: bool = True  # Whether to automatically resume from checkpoint
 

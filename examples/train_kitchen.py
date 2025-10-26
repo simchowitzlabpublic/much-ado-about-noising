@@ -84,13 +84,8 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
 
         # preprocess data
         if config.task.obs_type == "state":
-            obs_batch = batch["obs"]
-            obs = {}
-            for k in obs_batch:
-                obs_data = obs_batch[k].to(config.optimization.device)
-                obs[k] = obs_data[
-                    :, : config.task.obs_steps, :
-                ]  # (B, obs_horizon, obs_dim)
+            obs = batch["obs"]["state"].to(config.optimization.device)
+            obs = obs[:, : config.task.obs_steps, :]  # (B, obs_steps, obs_dim)
         else:
             raise ValueError(f"Invalid obs_type: {config.task.obs_type}")
 
@@ -364,14 +359,13 @@ def main(config):
     if config.mode == "train":
         train(config, envs, dataset, agent, logger, resume_state=resume_state)
     elif config.mode == "eval":
-        if not config.optimization.model_path:
-            raise ValueError("Empty model for inference")
         agent.eval()
 
         num_steps_list = get_default_step_list(config.optimization.loss_type)
         for num_steps in num_steps_list:
             metrics = {"step": num_steps}
             metrics.update(evaluate(config, envs, dataset, agent, logger, num_steps))
+            metrics["step"] = int(metrics["step"])
             logger.log(metrics, category="eval")
 
         # print result in easy to read format

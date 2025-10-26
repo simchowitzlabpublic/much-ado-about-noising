@@ -26,7 +26,6 @@ log:
 
 task:
   num_envs: 2
-
 # network:
 #   num_layers: 1
 #   expansion_factor: 1

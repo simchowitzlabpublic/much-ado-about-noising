@@ -32,10 +32,8 @@ dependencies = [
     "pygame",
     "shapely",
     "pymunk<7.0.0",
-    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4",
-    "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git@v1.5.1",
     "h5py",
-    "zarr",
+    "zarr>=3.0.0",
     "numcodecs",
     "huggingface-hub",
     "imagecodecs",
@@ -43,6 +41,13 @@ dependencies = [
     "einops>=0.8.1",
     "gymnasium-robotics>=1.4.1",
     "tensordict>=0.5.0",
+    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4",
+    "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git@v1.5.1",
+    "gym>=0.13,<0.24",
+    "dm-control<=1.0.20",
+    "six",
+    "termcolor>=3.0.0",
+    #"mujoco==3.1.6",
 ]
 
 [project.optional-dependencies]
@@ -119,10 +124,3 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["mip"]
-
-[dependency-groups]
-dev = [
-    "ruff>=0.13.2",
-    "pytest>=8.0.0",
-    "pre-commit>=3.0.0",
-]

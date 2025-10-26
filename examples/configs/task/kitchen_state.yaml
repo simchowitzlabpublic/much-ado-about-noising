@@ -25,4 +25,4 @@ val_dataset_percentage: 0.0
 
 # Dimensions
 act_dim: 9
-obs_dim: 60  # Padded to match dataset (Gymnasium-Robotics has 59, dataset has 60)
+obs_dim: 60 # Padded to match dataset (Gymnasium-Robotics has 59, dataset has 60)

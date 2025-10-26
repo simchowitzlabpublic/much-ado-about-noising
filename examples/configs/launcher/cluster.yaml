@@ -1,0 +1,26 @@
+# @package _global_
+defaults:
+  - override /hydra/launcher: submitit_slurm
+  - _self_
+
+# Use unique directory per run with timestamp
+hydra_dir: "logs/${now:%Y-%m-%d_%H-%M-%S}_${log.exp_name}"
+
+hydra:
+  job:
+    chdir: False
+  launcher:
+    cpus_per_task: 16
+    partition: ???
+    timeout_min: 2880
+    gpus_per_node: 1
+    tasks_per_node: 1
+    constraint: volta32gb
+    nodes: 1
+    mem_gb: 32
+    submitit_folder: "${hydra_dir}/submitit"
+    additional_parameters:
+      requeue: true
+
+  sweep:
+    dir: "${hydra_dir}"

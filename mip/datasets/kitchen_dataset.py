@@ -1,5 +1,4 @@
 """Kitchen dataset.
-Port from CleanDiffuser https://github.com/CleanDiffuserTeam/CleanDiffuser/blob/main/cleandiffuser/dataset/kitchen_dataset.py
 
 Author: Chaoyi Pan
 Date: 2025-10-17
@@ -9,6 +8,8 @@ import os
 import pathlib
 import zipfile
 from pathlib import Path
+from tqdm import tqdm
+from typing import Dict
 
 import numpy as np
 import torch
@@ -22,6 +23,7 @@ from mip.dataset_utils import (
     dict_apply,
 )
 from mip.datasets.base import BaseDataset
+from mip.envs.kitchen.kitchen_thirdparty.kitchen_util import parse_mjl_logs
 
 
 def download_kitchen_dataset(
@@ -112,57 +114,105 @@ def make_dataset(task_config, mode="train"):
             logger.info(f"Downloaded dataset to: {dataset_path}")
     elif hasattr(task_config, "dataset_path"):
         # Use explicit path if provided
-        dataset_path = os.path.expanduser(task_config.dataset_path)
+        dataset_path = str(os.path.expanduser(task_config.dataset_path))
     else:
         raise ValueError(
             "Either dataset_repo/dataset_filename or dataset_path must be provided"
         )
 
     if task_config.obs_type == "state":
-        return KitchenStateDataset(
-            dataset_path=dataset_path,
+        return KitchenMjlDataset(
+            dataset_dir=f"{dataset_path}/kitchen_demos_multitask",
             horizon=task_config.horizon,
             pad_before=task_config.obs_steps - 1,
             pad_after=task_config.act_steps - 1,
+            abs_action=task_config.abs_action,
         )
     else:
         raise ValueError(f"Invalid observation type: {task_config.obs_type}")
 
 
-class KitchenStateDataset(BaseDataset):
-    """Kitchen dataset with state observations.
-
-    The dataset contains demonstrations of a robot performing kitchen tasks.
-    State observation contains 60-dimensional observation vector:
-    - robot_qpos: 9-dimensional joint positions
-    - object_qpos: 21-dimensional object positions
-    - robot_qvel: 30-dimensional (zeros in processed data)
-    """
-
+class KitchenMjlDataset(BaseDataset):
     def __init__(
         self,
-        dataset_path,
+        dataset_dir,
         horizon=1,
         pad_before=0,
         pad_after=0,
+        abs_action=True,
+        robot_noise_ratio=0.1,
     ):
         super().__init__()
 
-        data_directory = pathlib.Path(dataset_path)
-        observations = np.load(data_directory / "observations_seq.npy")
-        actions = np.load(data_directory / "actions_seq.npy")
-        masks = np.load(data_directory / "existence_mask.npy")
+        data_directory = pathlib.Path(dataset_dir)
+        robot_pos_noise_amp = np.array(
+            [
+                0.1,
+                0.1,
+                0.1,
+                0.1,
+                0.1,
+                0.1,
+                0.1,
+                0.1,
+                0.1,
+                0.005,
+                0.005,
+                0.0005,
+                0.0005,
+                0.0005,
+                0.0005,
+                0.0005,
+                0.0005,
+                0.005,
+                0.005,
+                0.005,
+                0.1,
+                0.1,
+                0.1,
+                0.005,
+                0.005,
+                0.005,
+                0.1,
+                0.1,
+                0.1,
+                0.005,
+            ],
+            dtype=np.float32,
+        )
+        rng = np.random.default_rng(seed=42)
 
+        data_directory = pathlib.Path(dataset_dir)
         self.replay_buffer = ReplayBuffer.create_empty_numpy()
-        for i in range(len(masks)):
-            eps_len = int(masks[i].sum())
-            obs = observations[i, :eps_len].astype(np.float32)
-            action = actions[i, :eps_len].astype(np.float32)
-            data = {
-                "state": obs,
-                "action": action,
-            }
-            self.replay_buffer.add_episode(data)
+        for i, mjl_path in enumerate(tqdm(list(data_directory.glob("*/*.mjl")))):
+            try:
+                data = parse_mjl_logs(str(mjl_path.absolute()), skipamount=40)
+                qpos = data["qpos"].astype(np.float32)
+                obs = np.concatenate(
+                    [
+                        qpos[:, :9],
+                        qpos[:, -21:],
+                        np.zeros((len(qpos), 30), dtype=np.float32),
+                    ],
+                    axis=-1,
+                )
+                if robot_noise_ratio > 0:
+                    # add observation noise to match real robot
+                    noise = (
+                        robot_noise_ratio
+                        * robot_pos_noise_amp
+                        * rng.uniform(low=-1.0, high=1.0, size=(obs.shape[0], 30))
+                    )
+                    obs[:, :30] += noise
+                episode = {
+                    "state": obs,
+                    "qpos": qpos,
+                    "qvel": data["qvel"].astype(np.float32),
+                    "action": data["ctrl"].astype(np.float32),
+                }
+                self.replay_buffer.add_episode(episode)
+            except Exception as e:
+                logger.warning(f"Error parsing {mjl_path}: {e}")
 
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer,
@@ -177,13 +227,28 @@ class KitchenStateDataset(BaseDataset):
 
         self.normalizer = self.get_normalizer()
 
-    def get_normalizer(self, **kwargs):
-        state_normalizer = MinMaxNormalizer(self.replay_buffer["state"][:])
-        action_normalizer = MinMaxNormalizer(self.replay_buffer["action"][:])
-        return {
-            "obs": {"state": state_normalizer},
-            "action": action_normalizer,
+    def get_normalizer(self):
+        state_normalizer = MinMaxNormalizer(
+            self.replay_buffer["state"][:]
+        )  # (N, obs_dim)
+        action_normalizer = MinMaxNormalizer(
+            self.replay_buffer["action"][:]
+        )  # (N, action_dim)
+        return {"obs": {"state": state_normalizer}, "action": action_normalizer}
+
+    def sample_to_data(self, sample):
+        state = sample["state"].astype(np.float32)
+        state = self.normalizer["obs"]["state"].normalize(state)
+
+        action = sample["action"].astype(np.float32)
+        action = self.normalizer["action"].normalize(action)
+        data = {
+            "obs": {
+                "state": state,
+            },
+            "action": action,
         }
+        return data
 
     def __str__(self) -> str:
         return f"Keys: {self.replay_buffer.keys()} Steps: {self.replay_buffer.n_steps} Episodes: {self.replay_buffer.n_episodes}"
@@ -191,18 +256,8 @@ class KitchenStateDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.sampler)
 
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
-
-        state = sample["state"].astype(np.float32)
-        state = self.normalizer["obs"]["state"].normalize(state)
-
-        action = sample["action"].astype(np.float32)
-        action = self.normalizer["action"].normalize(action)
-
-        data = {
-            "obs": {"state": state},
-            "action": action,
-        }
+        data = self.sample_to_data(sample)
         torch_data = dict_apply(data, torch.tensor)
         return torch_data

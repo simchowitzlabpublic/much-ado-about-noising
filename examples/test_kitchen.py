@@ -155,7 +155,7 @@ def main():
 
         sys.exit(1)
     else:
-        print(f"\n{GREEN}{BOLD}All tests passed! ✨{RESET}\n")
+        print(f"\n{GREEN}{BOLD}All tests passed! {RESET}\n")
         sys.exit(0)
 
 

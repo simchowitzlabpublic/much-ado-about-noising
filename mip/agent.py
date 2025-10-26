@@ -67,6 +67,12 @@ class TrainingAgent:
             weight_decay=config.optimization.weight_decay,
         )
 
+        # Store obs keys if using image observations (for CUDA graph compatibility)
+        if hasattr(config.task, "shape_meta") and "obs" in config.task.shape_meta:
+            self.obs_keys = sorted(config.task.shape_meta["obs"].keys())
+        else:
+            self.obs_keys = None
+
         # Compile training and sampling functions for faster execution
         self.use_compile = config.optimization.use_compile
         self.compile_mode = config.optimization.compile_mode
@@ -198,7 +204,7 @@ class TrainingAgent:
             """Complete update step (can be compiled).
 
             Args:
-                data: TensorDict containing 'act', 'obs', 'delta_t'
+                data: TensorDict containing 'act', 'delta_t', and either 'obs' or flattened 'obs_*' keys
 
             Returns:
                 TensorDict containing loss, grad_norm, and other metrics
@@ -263,12 +269,17 @@ class TrainingAgent:
                     p.data, alpha=1.0 - self.config.optimization.ema_rate
                 )
 
-    def update(self, act: torch.Tensor, obs: torch.Tensor, delta_t: torch.Tensor):
+    def update(
+        self,
+        act: torch.Tensor,
+        obs: torch.Tensor | dict | TensorDict,
+        delta_t: torch.Tensor,
+    ):
         """Update the model parameters with a training batch.
 
         Args:
             act: Action tensor of shape (batch_size, Ta, act_dim)
-            obs: Observation tensor of shape (batch_size, To, obs_dim)
+            obs: Observation tensor of shape (batch_size, To, obs_dim) or dict of tensors for images
             delta_t: Time step differences of shape (batch_size,)
 
         Returns:
@@ -289,17 +300,11 @@ class TrainingAgent:
         if self.use_compile:
             torch.compiler.cudagraph_mark_step_begin()
 
-        # Run the compiled update (includes forward, backward, optimizer, EMA)
-        # Convert TensorDict to regular dict for torch.compile compatibility
-        # (nested TensorDicts cause issues with torch.compile)
-        if isinstance(obs, TensorDict):
-            obs = dict(obs)
-
-        # Wrap inputs in TensorDict
+        # Wrap inputs in TensorDict - simple flat structure only (no dicts or nested structures)
         data = TensorDict(
             {
                 "act": act,
-                "obs": obs,
+                "obs": obs,  # obs can be dict or tensor - TensorDict will handle it
                 "delta_t": delta_t,
             },
             batch_size=act.shape[0],

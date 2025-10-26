@@ -10,12 +10,19 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict, deque
+from pathlib import Path
 
 import av
 import dill
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+
+# Import old gym for compatibility with CleanDiffuser environments
+try:
+    import gym as old_gym
+except ImportError:
+    old_gym = None
 
 # ------------------ MultiStepWrapper ------------------------
 
@@ -34,9 +41,17 @@ def repeated_box(box_space, n):
 
 
 def repeated_space(space, n):
-    if isinstance(space, spaces.Box):
+    # Check for both gymnasium.spaces.Box and old gym.spaces.Box
+    is_box = isinstance(space, spaces.Box) or (
+        old_gym and isinstance(space, old_gym.spaces.Box)
+    )
+    is_dict = isinstance(space, spaces.Dict) or (
+        old_gym and isinstance(space, old_gym.spaces.Dict)
+    )
+
+    if is_box:
         return repeated_box(space, n)
-    elif isinstance(space, spaces.Dict):
+    elif is_dict:
         result_space = spaces.Dict()
         for key, value in space.items():
             result_space[key] = repeated_space(value, n)
@@ -85,7 +100,9 @@ def stack_last_n_obs(all_obs, n_steps):
     return result
 
 
-class MultiStepWrapper(gym.Wrapper):
+class MultiStepWrapper:
+    """Multi-step wrapper that works with both old gym and new gymnasium."""
+
     def __init__(
         self,
         env,
@@ -94,7 +111,7 @@ class MultiStepWrapper(gym.Wrapper):
         max_episode_steps=None,
         reward_agg_method="max",
     ):
-        super().__init__(env)
+        self.env = env
         self._action_space = repeated_space(env.action_space, n_action_steps)
         self._observation_space = repeated_space(env.observation_space, n_obs_steps)
         self.max_episode_steps = max_episode_steps
@@ -106,6 +123,25 @@ class MultiStepWrapper(gym.Wrapper):
         self.reward = []
         self.done = []
         self.info = defaultdict(lambda: deque(maxlen=n_obs_steps + 1))
+
+    @property
+    def observation_space(self):
+        return self._observation_space
+
+    @property
+    def action_space(self):
+        return self._action_space
+
+    def __getattr__(self, name):
+        """Forward all other attributes to the wrapped environment."""
+        if name.startswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        # Handle render_mode for compatibility with gymnasium vectorized envs
+        if name == "render_mode":
+            return getattr(self.env, "render_mode", None)
+        return getattr(self.env, name)
 
     def seed(self, seed=None):
         """Set the seed for the environment's random number generator."""
@@ -123,7 +159,16 @@ class MultiStepWrapper(gym.Wrapper):
             kwargs["seed"] = self._seed
             self._seed = None  # Use seed only once
 
-        result = super().reset(**kwargs)
+        # Filter out gymnasium-specific kwargs for old gym environments
+        reset_kwargs = kwargs.copy()
+        try:
+            result = self.env.reset(**reset_kwargs)
+        except TypeError:
+            # Old gym environment, remove gymnasium-specific args
+            reset_kwargs = {
+                k: v for k, v in kwargs.items() if k not in ["seed", "options"]
+            }
+            result = self.env.reset(**reset_kwargs)
 
         # Handle both old gym (returns obs) and new gymnasium (returns obs, info) APIs
         if isinstance(result, tuple):
@@ -146,7 +191,7 @@ class MultiStepWrapper(gym.Wrapper):
             if len(self.done) > 0 and self.done[-1]:
                 # termination
                 break
-            result = super().step(act)
+            result = self.env.step(act)
 
             # Handle both old Gym (4 returns) and new Gymnasium (5 returns) APIs
             if len(result) == 5:
@@ -230,7 +275,7 @@ class VideoWrapper(gym.Wrapper):
         self.frames = []
         self.step_count = 1
         if self.enabled:
-            frame = self.env.render(mode=self.mode, **self.render_kwargs)
+            frame = self.env.render(**self.render_kwargs)
             assert frame.dtype == np.uint8
             self.frames.append(frame)
         return obs
@@ -239,7 +284,7 @@ class VideoWrapper(gym.Wrapper):
         result = super().step(action)
         self.step_count += 1
         if self.enabled and ((self.step_count % self.steps_per_render) == 0):
-            frame = self.env.render(mode=self.mode, **self.render_kwargs)
+            frame = self.env.render(**self.render_kwargs)
             assert frame.dtype == np.uint8
             self.frames.append(frame)
         return result
@@ -251,7 +296,9 @@ class VideoWrapper(gym.Wrapper):
 # ------------------ VideoRecordingWrapper ------------------------
 
 
-class VideoRecordingWrapper(gym.Wrapper):
+class VideoRecordingWrapper:
+    """Wrapper for video recording that works with both old gym and new gymnasium."""
+
     def __init__(
         self,
         env,
@@ -262,7 +309,7 @@ class VideoRecordingWrapper(gym.Wrapper):
         **kwargs,
     ):
         """When file_path is None, don't record."""
-        super().__init__(env)
+        self.env = env
 
         self.mode = mode
         self.render_kwargs = kwargs
@@ -272,8 +319,33 @@ class VideoRecordingWrapper(gym.Wrapper):
 
         self.step_count = 0
 
+    @property
+    def observation_space(self):
+        return self.env.observation_space
+
+    @property
+    def action_space(self):
+        return self.env.action_space
+
+    def __getattr__(self, name):
+        """Forward all other attributes to the wrapped environment."""
+        # Handle render_mode for compatibility with gymnasium vectorized envs
+        if name == "render_mode":
+            return getattr(self.env, "render_mode", None)
+        return getattr(self.env, name)
+
     def reset(self, **kwargs):
-        result = super().reset(**kwargs)
+        # Filter out gymnasium-specific kwargs for old gym environments
+        reset_kwargs = kwargs.copy()
+        try:
+            result = self.env.reset(**reset_kwargs)
+        except TypeError:
+            # Old gym environment, remove gymnasium-specific args
+            reset_kwargs = {
+                k: v for k, v in kwargs.items() if k not in ["seed", "options"]
+            }
+            result = self.env.reset(**reset_kwargs)
+
         # Handle both old gym (returns obs) and new gymnasium (returns obs, info) APIs
         if isinstance(result, tuple):
             obs, info = result
@@ -287,7 +359,7 @@ class VideoRecordingWrapper(gym.Wrapper):
         return obs, info
 
     def step(self, action):
-        result = super().step(action)
+        result = self.env.step(action)
         self.step_count += 1
         if self.file_path is not None and (
             (self.step_count % self.steps_per_render) == 0
@@ -295,7 +367,7 @@ class VideoRecordingWrapper(gym.Wrapper):
             if not self.video_recoder.is_ready():
                 self.video_recoder.start(self.file_path)
 
-            frame = self.env.render(mode=self.mode, **self.render_kwargs)
+            frame = self.env.render(**self.render_kwargs)
             assert frame.dtype == np.uint8
             self.video_recoder.write_frame(frame)
         return result
@@ -402,6 +474,11 @@ class VideoRecorder:
         if self.is_ready():
             # if still recording, stop first and start anew.
             self.stop()
+
+        # Create parent directory if it doesn't exist
+        parent_dir = Path(file_path).parent
+        if parent_dir != Path("."):
+            parent_dir.mkdir(parents=True, exist_ok=True)
 
         self.container = av.open(file_path, mode="w")
         self.stream = self.container.add_stream(self.codec, rate=self.fps)

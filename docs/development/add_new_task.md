@@ -17,7 +17,7 @@ Porting a new task involves four main steps:
 We use HuggingFace to manage datasets. If you want to share your dataset:
 
 1. Upload your dataset to the HuggingFace dataset repo: `ChaoyiPan/mip-dataset`
-2. Refer to [process_robomimic_dataset.py](../examples/process_single_robomimic_dataset.py) for examples
+2. Refer to `examples/process_single_robomimic_dataset.py` for examples
 3. Consider creating a dataset uploader script in `examples/` for convenience
 
 Example: For PushT, you can download from `lerobot/pusht` and then upload, or use an existing zarr file locally.

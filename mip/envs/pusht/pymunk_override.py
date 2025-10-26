@@ -36,7 +36,6 @@ __all__ = [
     "get_mouse_pos",
     "to_pygame",
     "from_pygame",
-    "lighten",
     "positive_y_is_up",
 ]
 
@@ -122,7 +121,7 @@ class DrawOptions(pymunk.SpaceDebugDrawOptions):
                     Surface that the objects will be drawn on
         """
         self.surface = surface
-        super(DrawOptions, self).__init__()
+        super().__init__()
 
     def draw_circle(
         self,
@@ -138,10 +137,10 @@ class DrawOptions(pymunk.SpaceDebugDrawOptions):
         pygame.draw.circle(
             self.surface, light_color(fill_color).as_int(), p, round(radius - 4), 0
         )
-
-        circle_edge = pos + Vec2d(radius, 0).rotated(angle)
-        p2 = to_pygame(circle_edge, self.surface)
-        line_r = 2 if radius > 20 else 1
+        # Uncomment to draw line from center to edge
+        # circle_edge = pos + Vec2d(radius, 0).rotated(angle)
+        # p2 = to_pygame(circle_edge, self.surface)
+        # line_r = 2 if radius > 20 else 1
         # pygame.draw.lines(self.surface, outline_color.as_int(), False, [p, p2], line_r)
 
     def draw_segment(self, a: Vec2d, b: Vec2d, color: SpaceDebugColor) -> None:

@@ -14,6 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import adept_envs.franka
-
-from adept_envs.utils.configurable import global_config
+import adept_envs.franka as franka  # noqa: F401
+from adept_envs.utils.configurable import global_config as global_config  # noqa: F401

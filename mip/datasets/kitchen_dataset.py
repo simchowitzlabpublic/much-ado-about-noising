@@ -8,13 +8,12 @@ import os
 import pathlib
 import zipfile
 from pathlib import Path
-from tqdm import tqdm
-from typing import Dict
 
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from loguru import logger
+from tqdm import tqdm
 
 from mip.dataset_utils import (
     MinMaxNormalizer,
@@ -256,7 +255,7 @@ class KitchenMjlDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.sampler)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
         data = self.sample_to_data(sample)
         torch_data = dict_apply(data, torch.tensor)

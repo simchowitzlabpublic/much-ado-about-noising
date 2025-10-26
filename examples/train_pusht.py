@@ -90,7 +90,12 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
                 obs[k] = obs_batch[k][:, : config.task.obs_steps, :].to(
                     config.optimization.device
                 )
-        elif config.task.obs_type in ["state", "keypoint"]:
+        elif config.task.obs_type == "state":
+            obs = batch["obs"]["state"].to(config.optimization.device)
+            obs = obs[
+                :, : config.task.obs_steps, :
+            ]  # (B, obs_horizon, obs_dim)
+        elif config.task.obs_type == "keypoint":
             obs_batch = batch["obs"]
             obs = {}
             for k in obs_batch:
@@ -241,6 +246,7 @@ def evaluate(config: Config, envs, dataset, agent, logger, num_steps=1):
                 obs = torch.tensor(
                     obs, device=config.optimization.device, dtype=torch.float32
                 )  # (num_envs, obs_steps, obs_dim)
+                obs = {"state": obs}
             elif config.task.obs_type == "keypoint":
                 obs_raw = obs.astype(np.float32)  # (num_envs, obs_steps, 20)
                 # Split into keypoint and agent_pos

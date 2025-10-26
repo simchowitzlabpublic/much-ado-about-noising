@@ -117,7 +117,9 @@ class Logger:
             agent.save(fp)
             loguru.logger.info(f"model_{str(identifier)} saved")
 
-    def save_global_checkpoint(self, agent, checkpoint_name, success_rate, training_state=None):
+    def save_global_checkpoint(
+        self, agent, checkpoint_name, success_rate, training_state=None
+    ):
         """Save checkpoint to global checkpoints folder with success rate comparison.
 
         Args:
@@ -134,7 +136,9 @@ class Logger:
         new_checkpoint_path = self._global_checkpoints_dir / f"{new_checkpoint_name}.pt"
 
         # Find existing checkpoints with the same base name but different success rates
-        existing_checkpoints = list(self._global_checkpoints_dir.glob(f"{checkpoint_name}_success*.pt"))
+        existing_checkpoints = list(
+            self._global_checkpoints_dir.glob(f"{checkpoint_name}_success*.pt")
+        )
 
         should_save = True
         if existing_checkpoints:
@@ -162,7 +166,9 @@ class Logger:
                         should_save = False
                         break
                 except (ValueError, IndexError) as e:
-                    loguru.logger.warning(f"Could not parse success rate from {existing_checkpoint.name}: {e}")
+                    loguru.logger.warning(
+                        f"Could not parse success rate from {existing_checkpoint.name}: {e}"
+                    )
 
         if should_save:
             agent.save(new_checkpoint_path, training_state=training_state)
@@ -180,10 +186,14 @@ class Logger:
             Path to the best checkpoint, or None if not found
         """
         # Find all checkpoints matching the pattern
-        matching_checkpoints = list(self._global_checkpoints_dir.glob(f"{checkpoint_base_name}_success*.pt"))
+        matching_checkpoints = list(
+            self._global_checkpoints_dir.glob(f"{checkpoint_base_name}_success*.pt")
+        )
 
         if not matching_checkpoints:
-            loguru.logger.info(f"No existing checkpoints found for pattern: {checkpoint_base_name}")
+            loguru.logger.info(
+                f"No existing checkpoints found for pattern: {checkpoint_base_name}"
+            )
             return None
 
         # Find the checkpoint with the highest success rate
@@ -201,7 +211,9 @@ class Logger:
                     best_success_rate = success_rate
                     best_checkpoint = checkpoint_path
             except (ValueError, IndexError) as e:
-                loguru.logger.warning(f"Could not parse success rate from {checkpoint_path.name}: {e}")
+                loguru.logger.warning(
+                    f"Could not parse success rate from {checkpoint_path.name}: {e}"
+                )
 
         if best_checkpoint:
             loguru.logger.info(

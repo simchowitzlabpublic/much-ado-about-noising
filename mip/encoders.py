@@ -732,11 +732,17 @@ class MultiImageObsEncoder(BaseEncoder):
             # (N,B,D)
             num_keys = len(self.rgb_keys)
             feature_dim = feature.shape[-1]
-            feature = feature.view(num_keys, batch_size if not self.use_seq else batch_size * seq_len, feature_dim)
+            feature = feature.view(
+                num_keys,
+                batch_size if not self.use_seq else batch_size * seq_len,
+                feature_dim,
+            )
             # (B,N,D)
             feature = torch.moveaxis(feature, 0, 1)
             # (B,N*D)
-            feature = feature.reshape(batch_size if not self.use_seq else batch_size * seq_len, -1)
+            feature = feature.reshape(
+                batch_size if not self.use_seq else batch_size * seq_len, -1
+            )
             features.append(feature)
         else:
             # run each rgb obs to independent models

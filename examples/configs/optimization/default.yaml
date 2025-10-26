@@ -1,4 +1,4 @@
-e @package optimization
+# @package optimization
 defaults:
   - _self_
 

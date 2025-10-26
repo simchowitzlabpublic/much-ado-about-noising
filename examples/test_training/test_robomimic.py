@@ -116,7 +116,11 @@ def main():
         "rnn",
     ]
 
-    loss_types = ["flow", "mip", "regression"]  # Add more if needed: ["flow", "flow_v2", etc.]
+    loss_types = [
+        "flow",
+        "mip",
+        "regression",
+    ]  # Add more if needed: ["flow", "flow_v2", etc.]
 
     # Track results
     results = {

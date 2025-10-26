@@ -1,5 +1,8 @@
+import logging
 import os
 import sys
+
+import numpy as np
 
 # hack to import adept envs
 ADEPT_DIR = os.path.join(
@@ -7,10 +10,7 @@ ADEPT_DIR = os.path.join(
 )
 sys.path.append(ADEPT_DIR)
 
-import logging
-
-import numpy as np
-from adept_envs.franka.kitchen_multitask_v0 import KitchenTaskRelaxV1
+from adept_envs.franka.kitchen_multitask_v0 import KitchenTaskRelaxV1  # noqa: E402
 
 OBS_ELEMENT_INDICES = {
     "bottom burner": np.array([11, 12]),
@@ -64,7 +64,7 @@ class KitchenBase(KitchenTaskRelaxV1):
     ):
         self.tasks_to_complete = list(self.TASK_ELEMENTS)
         self.goal_masking = True
-        super(KitchenBase, self).__init__(use_abs_action=use_abs_action, **kwargs)
+        super().__init__(use_abs_action=use_abs_action, **kwargs)
 
     def set_goal_masking(self, goal_masking=True):
         """Sets goal masking for goal-conditioned approaches (like RPL)."""
@@ -85,14 +85,13 @@ class KitchenBase(KitchenTaskRelaxV1):
 
     def reset_model(self):
         self.tasks_to_complete = list(self.TASK_ELEMENTS)
-        return super(KitchenBase, self).reset_model()
+        return super().reset_model()
 
     def get_observation(self):
         return self._get_obs()
 
     def _get_reward_n_score(self, obs_dict):
-        reward_dict, score = super(KitchenBase, self)._get_reward_n_score(obs_dict)
-        reward = 0.0
+        reward_dict, score = super()._get_reward_n_score(obs_dict)
         next_q_obs = obs_dict["qp"]
         next_obj_obs = obs_dict["obj_qp"]
         next_goal = self._get_task_goal(
@@ -125,7 +124,7 @@ class KitchenBase(KitchenTaskRelaxV1):
         return reward_dict, score
 
     def step(self, a, b=None):
-        obs, reward, done, env_info = super(KitchenBase, self).step(a, b=b)
+        obs, reward, done, env_info = super().step(a, b=b)
         if self.TERMINATE_ON_TASK_COMPLETE:
             done = not self.tasks_to_complete
         if self.TERMINATE_ON_WRONG_COMPLETE:
@@ -153,10 +152,10 @@ class KitchenBase(KitchenTaskRelaxV1):
         seqs = []
         for end_idx in seq_end_idxs:
             seqs.append(
-                dict(
-                    states=data["observations"][start : end_idx + 1],
-                    actions=data["actions"][start : end_idx + 1],
-                )
+                {
+                    "states": data["observations"][start : end_idx + 1],
+                    "actions": data["actions"][start : end_idx + 1],
+                }
             )
             start = end_idx + 1
         return seqs

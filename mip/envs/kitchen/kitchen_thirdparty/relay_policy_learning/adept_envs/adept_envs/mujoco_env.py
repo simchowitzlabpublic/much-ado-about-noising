@@ -18,15 +18,14 @@
 
 import collections
 import os
-import time
-from typing import Dict, Optional
 
 import gym
+import numpy as np
 from gym import spaces
 from gym.utils import seeding
-import numpy as np
 
-from adept_envs.simulation.sim_robot import MujocoSimRobot, RenderMode
+from adept_envs.simulation.renderer import RenderMode
+from adept_envs.simulation.sim_robot import MujocoSimRobot
 
 DEFAULT_RENDER_SIZE = 480
 
@@ -40,8 +39,8 @@ class MujocoEnv(gym.Env):
         self,
         model_path: str,
         frame_skip: int,
-        camera_settings: Optional[Dict] = None,
-        use_dm_backend: Optional[bool] = None,
+        camera_settings: dict | None = None,
+        use_dm_backend: bool | None = None,
     ):
         """Initializes a new MuJoCo environment.
 
@@ -55,9 +54,7 @@ class MujocoEnv(gym.Env):
         """
         self._seed()
         if not os.path.isfile(model_path):
-            raise IOError(
-                "[MujocoEnv]: Model path does not exist: {}".format(model_path)
-            )
+            raise OSError(f"[MujocoEnv]: Model path does not exist: {model_path}")
         self.frame_skip = frame_skip
 
         self.sim_robot = MujocoSimRobot(
@@ -108,7 +105,7 @@ class MujocoEnv(gym.Env):
         except TypeError:
             # Fallback case for gym 0.9.x
             self.action_space = spaces.Box(act_lower, act_upper)
-            assert not isinstance(observation, collections.Mapping), (
+            assert not isinstance(observation, collections.abc.Mapping), (
                 "gym 0.9.x does not support dictionary observation."
             )
             self.obs_dim = (

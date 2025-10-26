@@ -15,7 +15,7 @@ from mip.envs.pusht.pymunk_override import DrawOptions
 
 
 def pymunk_to_shapely(body, shapes):
-    geoms = list()
+    geoms = []
     for shape in shapes:
         if isinstance(shape, pymunk.shapes.Poly):
             verts = [body.local_to_world(v) for v in shape.get_vertices()]
@@ -313,7 +313,7 @@ class PushTEnv(gym.Env):
         self.space.gravity = 0, 0
         self.space.damping = 0
         self.teleop = False
-        self.render_buffer = list()
+        self.render_buffer = []
 
         # Add walls.
         walls = [

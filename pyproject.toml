@@ -39,14 +39,13 @@ dependencies = [
     "imagecodecs",
     "datasets>=4.1.1",
     "einops>=0.8.1",
-    "gymnasium-robotics>=1.4.1",
     "tensordict>=0.5.0",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4",
     "robosuite @ git+https://github.com/ARISE-Initiative/robosuite.git@v1.5.1",
-    "gym>=0.13,<0.24",
     "dm-control<=1.0.20",
     "six",
     "termcolor>=3.0.0",
+    # "gym>=0.13,<0.24",
     #"mujoco==3.1.6",
 ]
 

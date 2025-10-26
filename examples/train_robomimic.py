@@ -8,15 +8,30 @@ import os
 import time
 from contextlib import contextmanager
 
-# Set MuJoCo rendering backend before importing any robomimic/mujoco modules
-# Try OSMesa for headless rendering (software rendering, more compatible but slower)
-os.environ["MUJOCO_GL"] = "osmesa"
-
 import hydra
 import loguru
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+# Set MuJoCo rendering backend before importing any robomimic/mujoco modules
+# Try OSMesa for headless rendering (software rendering, more compatible but slower)
+os.environ["MUJOCO_GL"] = "osmesa"  # noqa: E402
+
+# Import mip modules after setting environment variables
+from mip.agent import TrainingAgent  # noqa: E402
+from mip.config import Config  # noqa: E402
+from mip.dataset_utils import loop_dataloader  # noqa: E402
+from mip.datasets.robomimic_dataset import make_dataset  # noqa: E402
+from mip.envs.robomimic.robomimic_env import make_vec_env  # noqa: E402
+from mip.logger import (  # noqa: E402
+    Logger,
+    compute_average_metrics,
+    update_best_metrics,
+)
+from mip.samplers import get_default_step_list  # noqa: E402
+from mip.scheduler import WarmupAnnealingScheduler  # noqa: E402
+from mip.torch_utils import limit_threads, set_seed  # noqa: E402
 
 torch.set_float32_matmul_precision("high")
 
@@ -32,17 +47,6 @@ def timed(section: str, record_dict: dict):
     start = time.perf_counter()
     yield
     record_dict[section].append(time.perf_counter() - start)
-
-
-from mip.agent import TrainingAgent
-from mip.config import Config
-from mip.dataset_utils import loop_dataloader
-from mip.datasets.robomimic_dataset import make_dataset
-from mip.envs.robomimic.robomimic_env import make_vec_env
-from mip.logger import Logger, compute_average_metrics, update_best_metrics
-from mip.samplers import get_default_step_list
-from mip.scheduler import WarmupAnnealingScheduler
-from mip.torch_utils import set_seed, limit_threads
 
 
 def train(config: Config, envs, dataset, agent, logger, resume_state=None):

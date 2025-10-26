@@ -1056,5 +1056,5 @@ def tensordict_to_dict(obs):
     """
     if hasattr(obs, "to_dict"):
         # It's a TensorDict - convert to regular dict without nested structure
-        return {k: v for k, v in obs.items()}
+        return dict(obs.items())
     return obs

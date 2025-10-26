@@ -1,17 +1,18 @@
-from typing import Dict, Sequence, Union, Optional
-import numpy as np
-import skimage.transform as st
-import pymunk
-import pygame
-from matplotlib import cm
+from collections.abc import Sequence
+from typing import Union
+
 import cv2
+import numpy as np
+import pygame
+import pymunk
+import skimage.transform as st
+from matplotlib import cm
+
 from mip.envs.pusht.pymunk_override import DrawOptions
 
 
 def farthest_point_sampling(points: np.ndarray, n_points: int, init_idx: int):
-    """
-    Naive O(N^2)
-    """
+    """Naive O(N^2)"""
     assert n_points >= 1
     chosen_points = [points[init_idx]]
     for _ in range(n_points - 1):
@@ -28,16 +29,15 @@ def farthest_point_sampling(points: np.ndarray, n_points: int, init_idx: int):
 class PymunkKeypointManager:
     def __init__(
         self,
-        local_keypoint_map: Dict[str, np.ndarray],
-        color_map: Optional[Dict[str, np.ndarray]] = None,
+        local_keypoint_map: dict[str, np.ndarray],
+        color_map: dict[str, np.ndarray] | None = None,
     ):
-        """
-        local_keypoint_map:
-            "<attribute_name>": (N,2) floats in object local coordinate
+        """local_keypoint_map:
+        "<attribute_name>": (N,2) floats in object local coordinate
         """
         if color_map is None:
             cmap = cm.get_cmap("tab10")
-            color_map = dict()
+            color_map = {}
             for i, key in enumerate(local_keypoint_map.keys()):
                 color_map[key] = (np.array(cmap.colors[i]) * 255).astype(np.uint8)
 
@@ -54,7 +54,7 @@ class PymunkKeypointManager:
     @classmethod
     def create_from_pusht_env(cls, env, n_block_kps=9, n_agent_kps=3, seed=0, **kwargs):
         rng = np.random.default_rng(seed=seed)
-        local_keypoint_map = dict()
+        local_keypoint_map = {}
         for name in ["block", "agent"]:
             self = env
             self.space = pymunk.Space()
@@ -103,9 +103,9 @@ class PymunkKeypointManager:
         return cls.get_tf_img(pose)
 
     def get_keypoints_global(
-        self, pose_map: Dict[set, Union[Sequence, pymunk.Body]], is_obj=False
+        self, pose_map: dict[set, Union[Sequence, pymunk.Body]], is_obj=False
     ):
-        kp_map = dict()
+        kp_map = {}
         for key, value in pose_map.items():
             if is_obj:
                 tf_img_obj = self.get_tf_img_obj(value)
@@ -131,8 +131,9 @@ class PymunkKeypointManager:
 
 
 def test():
-    from mip.envs.pusht.pusht_env import PushTEnv
     from matplotlib import pyplot as plt
+
+    from mip.envs.pusht.pusht_env import PushTEnv
 
     env = PushTEnv(headless=True, obs_state=False, draw_action=False)
     kp_manager = PymunkKeypointManager.create_from_pusht_env(env=env)

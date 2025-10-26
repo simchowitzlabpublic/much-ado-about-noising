@@ -1,13 +1,13 @@
 """Process and upload ALL robomimic datasets (state and image) with full demos to HuggingFace."""
 
-import tyro
 import loguru
+import tyro
+from huggingface_hub import HfApi
 from process_single_robomimic_dataset import (
     download_original_dataset,
     upload_to_hub,
     validate_dataset,
 )
-from huggingface_hub import HfApi
 
 # Repository configuration
 PROCESSED_REPO_ID = "ChaoyiPan/mip-dataset"
@@ -38,7 +38,7 @@ def process_and_upload_state_dataset(task: str, source: str) -> bool:
 
         # Upload to our repo
         loguru.logger.info(f"Uploading state dataset to {PROCESSED_REPO_ID}...")
-        repo_path = upload_to_hub(
+        upload_to_hub(
             local_path=local_path,
             task=task,
             source=source,
@@ -81,11 +81,18 @@ def process_and_upload_image_dataset(task: str, source: str) -> bool:
 
 
 def main(
-    tasks: list[str] = ["lift", "can", "square", "transport", "tool_hang"],
-    sources: list[str] = ["ph", "mh"],
-    modalities: list[str] = ["state", "image"],
+    tasks: list[str] | None = None,
+    sources: list[str] | None = None,
+    modalities: list[str] | None = None,
 ):
     """Process and upload all datasets."""
+    if tasks is None:
+        tasks = ["lift", "can", "square", "transport", "tool_hang"]
+    if sources is None:
+        sources = ["ph", "mh"]
+    if modalities is None:
+        modalities = ["state", "image"]
+
     loguru.logger.info("Processing and uploading all datasets.")
 
     api = HfApi()

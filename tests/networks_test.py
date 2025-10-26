@@ -331,16 +331,21 @@ def test_network_creation_from_config():
             num_layers=2,
             dropout=0.1,
             timestep_emb_dim=64,
+            n_heads=4,  # Must divide emb_dim evenly (128 / 4 = 32)
         )
 
         # Create network
+        # Note: get_network expects obs_dim to be the encoded dimension (emb_dim)
+        # because networks receive encoded observations from the encoder
         model = get_network(network_config, task_config)
 
-        # Test forward pass
+        # Test forward pass with encoded observations
+        # The network expects observations to be already encoded to emb_dim
         x = torch.randn(BATCH_SIZE, TA, ACT_DIM)
         s = torch.randn(BATCH_SIZE)
         t = torch.randn(BATCH_SIZE)
-        condition = torch.randn(BATCH_SIZE, TO, OBS_DIM)
+        # Use emb_dim instead of OBS_DIM since network expects encoded observations
+        condition = torch.randn(BATCH_SIZE, TO, network_config.emb_dim)
 
         action, scalar = model(x, s, t, condition)
         assert action.shape == (BATCH_SIZE, TA, ACT_DIM)

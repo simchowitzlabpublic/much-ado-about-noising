@@ -195,7 +195,7 @@ class ReplayBuffer:
             # numpy backend
             meta = {}
             meta_group = src_root["meta"]
-            for key in meta_group.keys():
+            for key in meta_group:
                 value = meta_group[key]
                 if len(value.shape) == 0:
                     meta[key] = np.array(value)

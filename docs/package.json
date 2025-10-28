@@ -1,7 +1,7 @@
 {
-  "name": "mip-docs",
+  "name": "much-ado-about-noising-docs",
   "version": "0.1.0",
-  "description": "Documentation for MIP (Minimum Iterative Policy)",
+  "description": "Documentation for Much Ado About Noising: Dispelling the Myths of Generative Robotic Control",
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev",

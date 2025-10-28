@@ -2,8 +2,8 @@
 layout: home
 
 hero:
-  name: "Much Ado About Noising: Dispelling the Myths of Generative Robotic Control"
-  text: "Minimum Implementation of flow-based policies"
+  name: "Much Ado About Noising"
+  text: "Dispelling the Myths of Generative Robotic Control"
   tagline: A PyTorch framework for behavior cloning with flow matching and generative models
   actions:
     - theme: brand
@@ -11,7 +11,7 @@ hero:
       link: /getting-started/quick_start
     - theme: alt
       text: View on GitHub
-      link: https://github.com/ChaoyiPan/mip
+      link: https://github.com/simchowitzlabpublic/much-ado-about-noising
 
 features:
   - icon: ⚡
@@ -52,7 +52,7 @@ uv run examples/train_robomimic.py \
 
 ### Multiple Training Objectives
 
-MIP supports a variety of training objectives for generative behavior cloning:
+This repository supports a variety of training objectives for generative behavior cloning:
 
 - **Flow Matching** (`flow`): Standard continuous normalizing flow objective
 - **Regression** (`regression`): Direct supervised learning baseline with the same architecture as flow matching.

@@ -4,12 +4,12 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![arXiv](https://img.shields.io/badge/arXiv-2406.12345-b31b1b.svg)](https://arxiv.org/abs/xxxx)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://simchowitzlabpublic.github.io/mip/)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising/)
 [![Project Website](https://img.shields.io/badge/website-project-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising-project/)
 
 
 
-This repository contains the code for the paper **"Much Ado About Noising: Dispelling the Myths of Generative Robotic Control"**. MIP is a PyTorch-based framework for behavior cloning with flow matching and related generative models, incorporating best practices from diffusion model training.
+This repository contains the code for the paper **"Much Ado About Noising: Dispelling the Myths of Generative Robotic Control"**. This repository is a PyTorch-based framework for behavior cloning with flow matching and related generative models, incorporating best practices from diffusion model training.
 
 ## Features
 
@@ -21,7 +21,7 @@ This repository contains the code for the paper **"Much Ado About Noising: Dispe
 
 ## Documentation
 
-Please refer to the [documentation](https://simchowitzlabpublic.github.io/mip/) for more details.
+Please refer to the [documentation](https://simchowitzlabpublic.github.io/much-ado-about-noising/) for more details.
 
 ## Installation
 
@@ -84,7 +84,7 @@ See the [Configuration Guide](docs/getting-started/configuration.md) for more de
 
 ## Supported Training Objectives
 
-MIP supports multiple training objectives:
+This repository supports multiple training objectives:
 
 - **Flow Matching** (`flow`): Standard continuous normalizing flow
 - **Regression** (`regression`): Direct supervised learning baseline

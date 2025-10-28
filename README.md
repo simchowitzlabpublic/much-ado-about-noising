@@ -8,7 +8,6 @@
 [![Project Website](https://img.shields.io/badge/website-project-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising-project/)
 
 
-
 This repository contains the code for the paper **"Much Ado About Noising: Dispelling the Myths of Generative Robotic Control"**. This repository is a PyTorch-based framework for behavior cloning with flow matching and related generative models, incorporating best practices from diffusion model training.
 
 ## Features

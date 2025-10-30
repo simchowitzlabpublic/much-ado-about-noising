@@ -2,16 +2,16 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: "MIP Documentation",
-  description: "Minimum Iterative Policy - A PyTorch framework for behavior cloning with flow matching",
-  base: '/mip/',
+  title: "Much Ado About Noising Documentation",
+  description: "Much Ado About Noising - A PyTorch framework for behavior cloning with flow models",
+  base: '/much-ado-about-noising/',
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Getting Started', link: '/getting-started/quick_start' },
       { text: 'Development', link: '/development/add_new_task' },
-      { text: 'GitHub', link: 'https://github.com/ChaoyiPan/mip' }
+      { text: 'GitHub', link: 'https://github.com/simchowitzlabpublic/much-ado-about-noising' }
     ],
 
     sidebar: [
@@ -51,7 +51,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/ChaoyiPan/mip' }
+      { icon: 'github', link: 'https://github.com/simchowitzlabpublic/much-ado-about-noising' }
     ],
 
     search: {

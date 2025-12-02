@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![arXiv](https://img.shields.io/badge/arXiv-2406.12345-b31b1b.svg)](https://arxiv.org/abs/xxxx)
+[![arXiv](https://img.shields.io/badge/arXiv-2406.12345-b31b1b.svg)](https://arxiv.org/abs/2512.01809)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising/)
 [![Project Website](https://img.shields.io/badge/website-project-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising-project/)
 

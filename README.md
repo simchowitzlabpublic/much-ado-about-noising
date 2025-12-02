@@ -105,5 +105,13 @@ See [Troubleshooting](docs/help/troubleshooting.md) for more issues and solution
 ## Citation
 
 ```
-
+@article{pan2025adonoisingdispellingmyths,
+      title={Much Ado About Noising: Dispelling the Myths of Generative Robotic Control}, 
+      author={Chaoyi Pan and Giri Anantharaman and Nai-Chieh Huang and Claire Jin and Daniel Pfrommer and Chenyang Yuan and Frank Permenter and Guannan Qu and Nicholas Boffi and Guanya Shi and Max Simchowitz},
+      year={2025},
+      eprint={2512.01809},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2512.01809}, 
+}
 ```

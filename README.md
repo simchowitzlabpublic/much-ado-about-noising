@@ -6,6 +6,9 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2406.12345-b31b1b.svg)](https://arxiv.org/abs/2512.01809)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising/)
 [![Project Website](https://img.shields.io/badge/website-project-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising-project/)
+[![HuggingFace Dataset](https://img.shields.io/badge/HuggingFace-dataset-yellow.svg?logo=huggingface)](https://huggingface.co/datasets/ChaoyiPan/mip-dataset)
+[![HuggingFace Checkpoints](https://img.shields.io/badge/HuggingFace-checkpoints-orange.svg?logo=huggingface)](https://huggingface.co/ChaoyiPan/mip-checkpoints)
+
 
 
 This repository contains the code for the paper **"Much Ado About Noising: Dispelling the Myths of Generative Robotic Control"**. This repository is a PyTorch-based framework for behavior cloning with flow matching and related generative models, incorporating best practices from diffusion model training.
@@ -59,6 +62,8 @@ uv run examples/train_pusht.py task=pusht_state
 
 ### Evaluation
 
+You can download checkpoints from [Hugging Face](https://huggingface.co/ChaoyiPan/mip-checkpoints).
+
 ```bash
 # Evaluate trained model
 uv run examples/train_robomimic.py \
@@ -106,12 +111,12 @@ See [Troubleshooting](docs/help/troubleshooting.md) for more issues and solution
 
 ```
 @article{pan2025adonoisingdispellingmyths,
-      title={Much Ado About Noising: Dispelling the Myths of Generative Robotic Control}, 
+      title={Much Ado About Noising: Dispelling the Myths of Generative Robotic Control},
       author={Chaoyi Pan and Giri Anantharaman and Nai-Chieh Huang and Claire Jin and Daniel Pfrommer and Chenyang Yuan and Frank Permenter and Guannan Qu and Nicholas Boffi and Guanya Shi and Max Simchowitz},
       year={2025},
       eprint={2512.01809},
       archivePrefix={arXiv},
       primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2512.01809}, 
+      url={https://arxiv.org/abs/2512.01809},
 }
 ```

@@ -167,12 +167,17 @@ def mip_loss(
     obs_emb = encoder(obs, None)
 
     # predict
-    act_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
+    # for first step, scale network output by t_two_step to match the scale of the second step
+    # equivalent form: directly let first step predict act
+    act_pred_0 = config.t_two_step * flow_map.get_velocity(s, act_0, obs_emb)
     act_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
 
     # compute loss
     # difference compared to tsd: no stochasticity in prediction
-    loss0 = (get_norm(act_pred_0 - act, config.norm_type) / (config.t_two_step)) ** 2
+    loss0 = (
+        get_norm(act_pred_0 - config.t_two_step * act, config.norm_type)
+        / (config.t_two_step)
+    ) ** 2
     loss1 = (
         get_norm(act_pred_1 - act, config.norm_type) / (1 - config.t_two_step)
     ) ** 2

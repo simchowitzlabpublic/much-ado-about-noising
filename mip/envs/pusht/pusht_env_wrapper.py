@@ -21,17 +21,7 @@ def make_vec_env(task_config: TaskConfig, seed=None):
     Returns:
         Vectorized gym environment
     """
-    # Use SyncVectorEnv for image-based tasks (rendering contexts can't be pickled)
-    # or when num_envs=1 or save_video=True
-    if (
-        task_config.num_envs == 1
-        or task_config.save_video
-        or task_config.obs_type == "image"
-    ):
-        vnc_env_class = gym.vector.SyncVectorEnv
-    else:
-        vnc_env_class = gym.vector.AsyncVectorEnv
-
+    vnc_env_class = gym.vector.SyncVectorEnv
     envs = vnc_env_class(
         [
             make_pusht_env(task_config, idx, False, seed=seed)

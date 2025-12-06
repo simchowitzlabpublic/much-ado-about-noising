@@ -228,7 +228,11 @@ def evaluate(config: Config, envs, dataset, agent, logger, num_steps=1):
     episode_success = []
 
     for i in range(config.log.eval_episodes // config.task.num_envs):
+        step_reward = []
         ep_reward = [0.0] * config.task.num_envs
+        # NOTE: update env seed, the original envs is update seed so reset is broken
+        for j in range(len(envs.envs)):
+            envs.envs[j].seed(config.optimization.seed + i * config.task.num_envs + j)
         obs, _ = envs.reset()
         t = 0
 
@@ -313,9 +317,10 @@ def evaluate(config: Config, envs, dataset, agent, logger, num_steps=1):
             obs, reward, terminated, truncated, _ = envs.step(act)
             _ = terminated | truncated  # Track done status
             ep_reward += reward
+            step_reward.append(reward)
             t += config.task.act_steps
 
-        success = [1.0 if s > 0 else 0.0 for s in ep_reward]
+        success = np.around(np.max(np.array(step_reward), axis=0), 2)
         episode_rewards.append(ep_reward)
         episode_steps.append(t)
         episode_success.append(success)

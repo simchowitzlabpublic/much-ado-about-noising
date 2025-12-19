@@ -45,6 +45,7 @@ dependencies = [
     "dm-control<=1.0.20",
     "six",
     "termcolor>=3.0.0",
+    "ipykernel",
     # "gym>=0.13,<0.24",
     #"mujoco==3.1.6",
 ]

@@ -1,0 +1,63 @@
+# Configuration for reconstruction experiment
+# Compare regression vs flow models on scalar target functions
+
+# Experiment settings
+experiment:
+  name: "recon_experiment"
+  mode: "mip"  # 'regression' or 'flow' or 'mip'
+  seed: 42
+  device: "cuda"  # or "cpu"
+  output_dir: "./outputs/recon"
+
+# Dataset configuration
+dataset:
+  type: "TargetFunctionDataset"
+  num_train: 50  # Number of c samples for training
+  num_eval: 100000  # Number of c samples for evaluation
+  target_dim: 1
+  condition_dim: 1
+  c_min: 0.0
+  c_max: 1.0
+  
+  # Target function parameters
+  num_components: 3
+  weight_strategy: "uniform"  # or "inverse_freq"
+  sampling_strategy: "grid"  # or "random"
+  
+  # Seeds for reproducibility
+  freq_seed: 42
+  phase_seed: 43
+  weight_seed: 44
+  sample_seed: 45
+
+# Network configuration
+network:
+  architecture: "concat"  # or "film"
+  hidden_dim: 256
+  num_layers: 3
+  activation: "relu"
+
+# Training configuration
+training:
+  loss_type: "l2"
+  batch_size: 32
+  num_epochs: 50000
+  learning_rate: 0.001
+  
+  # Logging intervals
+  log_interval: 1000
+  eval_interval: 50000
+  save_interval: 50000
+  
+  # Initial distribution for flow
+  initial_dist: "gaussian"  # 'zeros' or 'gaussian'
+  
+  # MIP parameters (only used if mode='mip')
+  mip_t_star: 0.9  # Fixed time point for denoising term
+
+# Evaluation configuration
+evaluation:
+  num_eval_steps: [1, 9]  # ODE integration steps (for flow mode)
+  integration_method: "euler"  # or "rk4"
+  # Initial distribution for flow
+  initial_dist: "zeros"  # 'zeros' or 'gaussian'

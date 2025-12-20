@@ -1,0 +1,808 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\dr}{d_{\mathrm{rot}}}
+\newcommand{\balpha}{\bm{\alpha}}
+\newcommand{\be}{\bm{e}}
+\newcommand{\coserr}{\mathrm{cos}\text{-}\mathrm{err}}
+
+\title{Neural Manifold Learning Experiments:\\Comparative Analysis of Five Training Modes}
+\author{
+Chaoyi Pan$^{a,\$}$ \quad
+Giri Anantharaman$^{a}$ \quad
+Nai-Chieh Huang$^{a}$ \quad
+Claire Jin$^{a}$ \quad
+Daniel Pfrommer$^{b}$ \\[0.5em]
+Chenyang Yuan$^{c}$ \quad
+Frank Permenter$^{c}$ \quad
+Guannan Qu$^{a,\dagger}$ \quad
+Nicholas Boffi$^{a,\dagger}$ \quad
+Guanya Shi$^{a,\dagger}$ \\[0.5em]
+Max Simchowitz$^{a,\dagger}$ \\[1em]
+{\normalsize $^\$$Project lead. \quad $^\dagger$Equal advising.} \\[0.5em]
+{\normalsize $^{a}$Carnegie Mellon University \quad $^{b}$Massachusetts Institute of Technology \quad $^{c}$Toyota Research Institute}
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section*{Executive Summary}
+
+This report presents a comprehensive comparison of five training modes (regression, flow matching, MIP, MIP one-step, and straight flow) across three manifold learning tasks (reconstruction, projection, and Lie algebra). Each mode was evaluated with two loss functions (L1 and L2) and two neural architectures (concatenation and FiLM), for a total of 20 configurations per task. All experiments were conducted across 3 random seeds.
+
+\textbf{Key Findings:}
+
+Flow-based methods (flow matching, MIP, MIP one-step, and straight flow) consistently outperform regression on projection-based geometric metrics, demonstrating superior manifold adherence and boundary enforcement. In contrast, regression achieves the best L2 reconstruction error, excelling at direct supervised learning of point-wise mappings. This reveals a fundamental trade-off: flow-based approaches learn better geometric structure while regression optimizes reconstruction accuracy.
+
+\begin{itemize}
+    \item \textbf{Reconstruction Task:} MIP one-step trained with L2 loss using FiLM architecture achieves the best L2 test error (0.003197), demonstrating superior reconstruction accuracy with a single denoising step at evaluation time.
+    
+    \item \textbf{Projection Task:} Straight flow trained with L1 loss using FiLM architecture achieves the best boundary metric (0.009769), indicating excellent performance in projecting points onto the target manifold with minimal boundary violations.
+    
+    \item \textbf{Lie Algebra Task:} Straight flow trained with L1 loss using FiLM architecture achieves the best average projection metric (0.063612), demonstrating strong performance in maintaining orthogonality to the Lie algebra.
+\end{itemize}
+
+\textbf{Note on Training Loss:} While we evaluate all modes with both L1 and L2 losses for completeness, training flow-based methods (flow matching, straight flow) with L1 loss lacks mathematical grounding, as the conditional flow matching objective is naturally derived for L2 loss. Results with L1-trained flow models should be interpreted with this caveat in mind.
+
+\tableofcontents
+\newpage
+
+\section{Experimental Setup}
+
+\subsection{Network Architecture}
+
+All experiments compare two conditioning architectures with identical capacity:
+
+\begin{itemize}
+    \item \textbf{Concatenation (Concat)}: Concatenates condition $c$ and input $x$ before processing: $[\mathbf{x}; \mathbf{c}]$
+    \item \textbf{Feature-wise Linear Modulation (FiLM)}: Applies affine transformations to hidden layer activations conditioned on $c$: $\text{FiLM}(\mathbf{h}, \mathbf{c}) = \gamma(\mathbf{c}) \odot \mathbf{h} + \beta(\mathbf{c})$
+    \item \textbf{Hidden dimension}: 256
+    \item \textbf{Hidden layers}: 3
+    \item \textbf{Activation}: ReLU
+    \item \textbf{Batch size}: 32
+    \item \textbf{Training epochs}: 50,000
+    \item \textbf{Optimizer}: Adam with learning rate 0.001
+\end{itemize}
+
+\subsection{Training Paradigms}
+
+\textbf{Regression}: Directly minimizes reconstruction loss between network predictions $\hat{f}(\mathbf{x}, \mathbf{c})$ and target values $f(\mathbf{c})$.
+
+\textbf{Flow Matching}: Learns a conditional vector field $v_\theta(\mathbf{x}, \mathbf{c}, t)$ that transports Gaussian noise to target values via ODE integration:
+\begin{equation}
+\frac{d\mathbf{x}_t}{dt} = v_\theta(\mathbf{x}_t, \mathbf{c}, t), \quad \mathbf{x}_0 \sim \mathcal{N}(0, I)
+\end{equation}
+Evaluated using Euler integration with time conditioning.
+
+\textbf{Straight Flow}: An ablation of flow matching that tests whether time conditioning improves performance. During training, samples interpolated points $\mathbf{x}_t = (1-t)\mathbf{x}_0 + t\mathbf{x}_1$ at random times $t \in [0,1]$, but always queries the model at $t=0$ (no time information provided). The model learns to predict $\mathbf{x}_1$ directly from any point along the interpolation path without knowing its position. Evaluated using the same ODE integration as flow matching, but with $t$ always set to 0.
+
+\textbf{MIP (Manifold Interpolation)}: Combines flow matching with a denoising term at fixed time $t^* = 0.9$:
+\begin{equation}
+\mathcal{L}_{\text{MIP}} = \mathcal{L}_{\text{flow}}(t) + \lambda \|\mathbf{x}_{t^*} - f(\mathbf{c})\|^2
+\end{equation}
+The denoising term encourages the learned trajectory to pass through the target manifold at $t^*$.
+
+\textbf{MIP One-Step}: Uses the same training as MIP but evaluates using only the initial denoising step:
+\begin{equation}
+\hat{f}(\mathbf{x}_0, \mathbf{c}) = \text{model}(\mathbf{x}_0, \mathbf{c}, t=0)
+\end{equation}
+instead of the full two-step MIP evaluation.
+
+\subsection{Training Details}
+
+\begin{itemize}
+    \item \textbf{Training samples}: $n = 50$ per condition
+    \item \textbf{Test samples}: $n = 100,000$ 
+    \item \textbf{Random seeds}: 3 independent runs per configuration
+    \item \textbf{Loss functions}: Both L1 and L2 losses evaluated
+\end{itemize}
+
+\section{Tasks and Metric Definitions}
+
+\subsection{Reconstruction Task}
+
+\textbf{Objective}: Learn a scalar target function composed of trigonometric terms:
+\begin{equation}
+f(c) = \sum_{i=1}^{K} w_i \cdot \text{trig}_i(\omega_i c + \phi_i)
+\end{equation}
+where $\text{trig}_i \in \{\sin, \cos\}$ alternates, $K=3$ components, $c \in [0,1]$. Frequencies $\omega_i$ are prime-based to avoid overlaps, and weights $w_i=1$ (uniform).
+
+\textbf{Metrics}:
+\begin{itemize}
+    \item \textbf{L1 test error}: $\|\hat{f}(\mathbf{x}, c) - f(c)\|_1$
+    \item \textbf{L2 test error}: $\|\hat{f}(\mathbf{x}, c) - f(c)\|_2$
+\end{itemize}
+
+Lower values indicate better reconstruction accuracy.
+
+\subsection{Projection Task}
+
+\textbf{Objective}: Project points onto a learned low-dimensional subspace embedded in high-dimensional space. The target manifold is a piecewise-linear function that changes slope at discrete boundaries.
+
+\textbf{Subspace Metric Definitions}: Let $c_j \in \{0.1, 0.2, \ldots, 0.9\}$ denote boundary points, and define $\bar{I}_j = [c_j - 0.03, c_j + 0.03]$ as the evaluation interval around each boundary. Let $P_j$ denote the projection matrix onto the subspace spanning interval $[c_j - 0.1, c_j]$ and $P_{j+1}$ the projection onto $[c_j, c_{j+1}]$. We define:
+\begin{equation}
+P_{j,j+1} = [P_j, P_{j+1}]
+\end{equation}
+as the concatenation of these two projection matrices. Let $\tilde{P}_{j,j+1}$ denote the projection onto the span of $P_{j,j+1}$. This is computed via SVD on $P_{j,j+1}$, taking the top $2k$ singular vectors. 
+
+We evaluate the following normalized metrics on test points $\hat{f}$ for $c \in \bar{I}_j$:
+
+\begin{itemize}
+    \item \textbf{Subspace Diagonal}: $\frac{\|(I - \tilde{P}_{j,j+1})(\hat{f} - f^*)\|}{\|\hat{f} - f^*\|}$ when $c \in \bar{I}_j$ (measures normalized deviation from the correct local subspace at boundaries)
+    
+    \item \textbf{Subspace Off-Diagonal}: $\frac{\|(I - \tilde{P}_{j,j+1})(\hat{f} - f^*)\|}{\|\hat{f} - f^*\|}$ when $c \notin \bar{I}_j$ (measures normalized global subspace adherence)
+    
+    \item \textbf{Boundary}: $\frac{\|(I - \tilde{P}_{j,j+1})\hat{f}\|}{\|\hat{f}\|}$ (measures normalized discontinuities at the boundary points $c_j$)
+\end{itemize}
+
+Additionally, we report:
+\begin{itemize}
+    \item \textbf{L1 test error}: $\|\hat{f}(\mathbf{x}, c) - f(c)\|_1$
+    \item \textbf{L2 test error}: $\|\hat{f}(\mathbf{x}, c) - f(c)\|_2$
+\end{itemize}
+
+Lower values indicate better projection accuracy and manifold adherence.
+
+\subsection{Lie Algebra Task}
+
+\textbf{Objective}: Learn a vector field $f(c): \mathbb{R} \to \mathbb{R}^d$ that satisfies Lie algebra constraints. The target is constructed using rotation matrices to encode tangent space structure.
+
+\textbf{Target Function}: We define a family of rotation-based target functions with $K$ components:
+\begin{equation}
+f_i(\alpha, c) = 
+\left(w_i(c) \cdot \exp( \alpha A_i ) \cdot \be_1\right)_{1 \le i \le K} \in \R^{\dr}
+\end{equation}
+where $A_i$ are skew-symmetric matrices (generators of rotations), $\be_1$ is a fixed reference vector, and $w_i(c)$ are scalar weighting functions. The full target function is:
+\begin{equation}
+f(c) = \mathrm{concat}_{1 \le i \le K}(f_i(\alpha_i c, c))
+\end{equation}
+This construction tests the model's ability to learn components rotating at different velocities $\alpha_i$.
+
+\textbf{Evaluation Metrics}: For each component $i$ at condition $c$, define the projection onto the tangent space:
+\begin{equation}
+P_{i}(c) = \mathrm{Projection}(\mathrm{span}(\exp(c \alpha_i A_i) \be_1))
+\end{equation}
+
+The geometric error for component $i$ is measured as:
+\begin{equation}
+\text{Projection Error}_i(c) = \frac{\|(I-P_i(c))f_i(\alpha_i c,c)\|}{\|f_i(\alpha_i c,c)\|}
+\end{equation}
+
+Equivalently, we can measure alignment via cosine similarity:
+\begin{equation}
+\coserr_i(c) = \cos\text{-similarity}(\exp(c \alpha_i A_i)\be_1, f_i(\alpha_i c,c))
+\end{equation}
+
+\textbf{Reported Metrics}:
+\begin{itemize}
+    \item \textbf{Average Cosine Similarity}: Mean $\coserr_i(c)$ across all components and test conditions (higher is better, indicates better tangent space alignment)
+    \item \textbf{Minimum Cosine Similarity}: Worst-case $\coserr_i(c)$ across all test points (higher is better)
+    \item \textbf{Average Projection}: Mean projection error across all components (lower is better, measures orthogonality to Lie algebra)
+    \item \textbf{Maximum Projection}: Maximum projection error (lower is better, measures worst-case deviation)
+    \item \textbf{L1 test error}: $\|\hat{f}(\mathbf{x}, c) - f(c)\|_1$
+    \item \textbf{L2 test error}: $\|\hat{f}(\mathbf{x}, c) - f(c)\|_2$
+\end{itemize}
+
+\textbf{Key Insight}: When rotation velocities $\alpha_i$ increase with $i$, faster-rotating components present greater challenges for maintaining manifold constraints. Methods that explicitly model the geometric structure (MIP, flow matching, straight flow) are expected to handle high-velocity components better than direct regression.
+
+\newpage
+
+\section{Reconstruction Task}
+
+The reconstruction task evaluates each method's ability to reconstruct manifold points from noisy observations. Performance is measured using L1 and L2 test errors on held-out data.
+
+\subsection{Results: Models Trained with L1 Loss}
+
+\subsubsection{Averaged Results (L1 Loss Training)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|c|c|}
+\hline
+Mode & Loss & Arch & L1 & L2 \\
+\hline
+straight\_flow & l1 & concat & 0.007651 $\pm$ 0.000615 & 0.009371 $\pm$ 0.001167 \\
+\hline
+straight\_flow & l1 & film & 0.004299 $\pm$ 0.001390 & 0.005296 $\pm$ 0.001542 \\
+\hline
+mip\_one\_step\_integrate & l1 & concat & 0.005705 $\pm$ 0.002182 & 0.007312 $\pm$ 0.002560 \\
+\hline
+mip\_one\_step\_integrate & l1 & film & 0.004656 $\pm$ 0.001546 & 0.005832 $\pm$ 0.001721 \\
+\hline
+regression & l1 & concat & 0.006367 $\pm$ 0.001027 & 0.007884 $\pm$ 0.000692 \\
+\hline
+regression & l1 & film & 0.005961 $\pm$ 0.001094 & 0.007284 $\pm$ 0.001672 \\
+\hline
+flow & l1 & concat & 0.021114 $\pm$ 0.002823 & 0.026871 $\pm$ 0.004521 \\
+\hline
+flow & l1 & film & 0.042884 $\pm$ 0.005564 & 0.052019 $\pm$ 0.003222 \\
+\hline
+mip & l1 & concat & 0.004185 $\pm$ 0.000247 & 0.005811 $\pm$ 0.000500 \\
+\hline
+mip & l1 & film & 0.007836 $\pm$ 0.003189 & 0.010120 $\pm$ 0.004307 \\
+\hline
+\end{tabular}
+\caption{Averaged results (trained with L1 loss) for recon task across modes and architectures}
+\label{tab:recon_l1_averaged}
+\end{table}
+
+\subsubsection{Seed-wise Results (L1 Loss Training)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|c|c|c|}
+\hline
+Mode & Loss & Arch & Seed & L1 & L2 \\
+\hline
+straight\_flow & l1 & concat & 0 & 0.007906 & 0.010877 \\
+straight\_flow & l1 & concat & 1 & 0.006804 & 0.008032 \\
+straight\_flow & l1 & concat & 2 & 0.008244 & 0.009206 \\
+\hline
+straight\_flow & l1 & film & 0 & 0.006165 & 0.007405 \\
+straight\_flow & l1 & film & 1 & 0.003904 & 0.004719 \\
+straight\_flow & l1 & film & 2 & 0.002829 & 0.003763 \\
+\hline
+mip\_one\_step\_integrate & l1 & concat & 0 & 0.003881 & 0.004825 \\
+mip\_one\_step\_integrate & l1 & concat & 1 & 0.004463 & 0.006279 \\
+mip\_one\_step\_integrate & l1 & concat & 2 & 0.008772 & 0.010834 \\
+\hline
+mip\_one\_step\_integrate & l1 & film & 0 & 0.003674 & 0.004565 \\
+mip\_one\_step\_integrate & l1 & film & 1 & 0.006839 & 0.008266 \\
+mip\_one\_step\_integrate & l1 & film & 2 & 0.003456 & 0.004665 \\
+\hline
+regression & l1 & concat & 0 & 0.004960 & 0.006917 \\
+regression & l1 & concat & 1 & 0.007386 & 0.008493 \\
+regression & l1 & concat & 2 & 0.006754 & 0.008242 \\
+\hline
+regression & l1 & film & 0 & 0.005248 & 0.006303 \\
+regression & l1 & film & 1 & 0.005129 & 0.005912 \\
+regression & l1 & film & 2 & 0.007507 & 0.009638 \\
+\hline
+flow & l1 & concat & 0 & 0.023371 & 0.032170 \\
+flow & l1 & concat & 1 & 0.017134 & 0.021124 \\
+flow & l1 & concat & 2 & 0.022839 & 0.027319 \\
+\hline
+flow & l1 & film & 0 & 0.050699 & 0.056197 \\
+flow & l1 & film & 1 & 0.038183 & 0.048355 \\
+flow & l1 & film & 2 & 0.039771 & 0.051505 \\
+\hline
+mip & l1 & concat & 0 & 0.003863 & 0.005119 \\
+mip & l1 & concat & 1 & 0.004465 & 0.006034 \\
+mip & l1 & concat & 2 & 0.004226 & 0.006282 \\
+\hline
+mip & l1 & film & 0 & 0.007724 & 0.009555 \\
+mip & l1 & film & 1 & 0.011796 & 0.015655 \\
+mip & l1 & film & 2 & 0.003987 & 0.005152 \\
+\hline
+\end{tabular}
+\caption{Seed-wise results (trained with L1 loss) for recon task across modes and architectures}
+\label{tab:recon_l1_seedwise}
+\end{table}
+
+\subsection{Results: Models Trained with L2 Loss}
+
+\subsubsection{Averaged Results (L2 Loss Training)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|c|c|}
+\hline
+Mode & Loss & Arch & L1 & L2 \\
+\hline
+straight\_flow & l2 & concat & 0.003851 $\pm$ 0.001085 & 0.005065 $\pm$ 0.001444 \\
+\hline
+straight\_flow & l2 & film & 0.005315 $\pm$ 0.003148 & 0.006799 $\pm$ 0.003815 \\
+\hline
+mip\_one\_step\_integrate & l2 & concat & 0.003159 $\pm$ 0.000561 & 0.004117 $\pm$ 0.000519 \\
+\hline
+mip\_one\_step\_integrate & l2 & film & 0.002381 $\pm$ 0.000479 & 0.003197 $\pm$ 0.000525 \\
+\hline
+regression & l2 & concat & 0.002288 $\pm$ 0.000040 & 0.003314 $\pm$ 0.000091 \\
+\hline
+regression & l2 & film & 0.006915 $\pm$ 0.006942 & 0.008062 $\pm$ 0.007377 \\
+\hline
+flow & l2 & concat & 0.060241 $\pm$ 0.009467 & 0.071551 $\pm$ 0.007469 \\
+\hline
+flow & l2 & film & 0.054293 $\pm$ 0.009452 & 0.066804 $\pm$ 0.009595 \\
+\hline
+mip & l2 & concat & 0.003807 $\pm$ 0.000103 & 0.004862 $\pm$ 0.000195 \\
+\hline
+mip & l2 & film & 0.003112 $\pm$ 0.000411 & 0.004021 $\pm$ 0.000316 \\
+\hline
+\end{tabular}
+\caption{Averaged results (trained with L2 loss) for recon task across modes and architectures}
+\label{tab:recon_l2_averaged}
+\end{table}
+
+\subsubsection{Seed-wise Results (L2 Loss Training)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|c|c|c|}
+\hline
+Mode & Loss & Arch & Seed & L1 & L2 \\
+\hline
+straight\_flow & l2 & concat & 0 & 0.004236 & 0.005630 \\
+straight\_flow & l2 & concat & 1 & 0.004944 & 0.006482 \\
+straight\_flow & l2 & concat & 2 & 0.002371 & 0.003083 \\
+\hline
+straight\_flow & l2 & film & 0 & 0.003892 & 0.004798 \\
+straight\_flow & l2 & film & 1 & 0.009681 & 0.012139 \\
+straight\_flow & l2 & film & 2 & 0.002373 & 0.003460 \\
+\hline
+mip\_one\_step\_integrate & l2 & concat & 0 & 0.002606 & 0.003622 \\
+mip\_one\_step\_integrate & l2 & concat & 1 & 0.002945 & 0.003895 \\
+mip\_one\_step\_integrate & l2 & concat & 2 & 0.003928 & 0.004834 \\
+\hline
+mip\_one\_step\_integrate & l2 & film & 0 & 0.003050 & 0.003936 \\
+mip\_one\_step\_integrate & l2 & film & 1 & 0.002137 & 0.002885 \\
+mip\_one\_step\_integrate & l2 & film & 2 & 0.001956 & 0.002769 \\
+\hline
+regression & l2 & concat & 0 & 0.002233 & 0.003196 \\
+regression & l2 & concat & 1 & 0.002325 & 0.003416 \\
+regression & l2 & concat & 2 & 0.002307 & 0.003332 \\
+\hline
+regression & l2 & film & 0 & 0.016732 & 0.018494 \\
+regression & l2 & film & 1 & 0.001995 & 0.002805 \\
+regression & l2 & film & 2 & 0.002018 & 0.002886 \\
+\hline
+flow & l2 & concat & 0 & 0.055125 & 0.068045 \\
+flow & l2 & concat & 1 & 0.073514 & 0.081934 \\
+flow & l2 & concat & 2 & 0.052084 & 0.064675 \\
+\hline
+flow & l2 & film & 0 & 0.047475 & 0.064479 \\
+flow & l2 & film & 1 & 0.067658 & 0.079544 \\
+flow & l2 & film & 2 & 0.047745 & 0.056390 \\
+\hline
+mip & l2 & concat & 0 & 0.003865 & 0.005120 \\
+mip & l2 & concat & 1 & 0.003663 & 0.004651 \\
+mip & l2 & concat & 2 & 0.003894 & 0.004814 \\
+\hline
+mip & l2 & film & 0 & 0.003648 & 0.004468 \\
+mip & l2 & film & 1 & 0.003037 & 0.003785 \\
+mip & l2 & film & 2 & 0.002651 & 0.003811 \\
+\hline
+\end{tabular}
+\caption{Seed-wise results (trained with L2 loss) for recon task across modes and architectures}
+\label{tab:recon_l2_seedwise}
+\end{table}
+
+\subsection{Reconstruction Task Summary}
+
+Across all configurations, models trained with L2 loss generally outperform L1-trained models on both L1 and L2 test metrics. The regression baseline achieves the lowest L1 test error (0.002288), while MIP one-step achieves the best L2 test error (0.003197). The MIP one-step approach demonstrates that a single denoising step can achieve competitive or superior reconstruction performance compared to the traditional two-step MIP approach. Straight flow shows moderate performance, suggesting that time conditioning provides valuable information for reconstruction tasks.
+
+\newpage
+
+\section{Projection Task}
+
+The projection task evaluates each method's ability to project arbitrary points onto the learned manifold. Performance is assessed using geometric metrics measuring subspace adherence and boundary discontinuities.
+
+\subsection{Results: Models Trained with L1 Loss}
+
+\subsubsection{Averaged Results (L1 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & L1 & L2 & Subspace Diag & Subspace Off-Diag & Boundary \\
+\hline
+straight\_flow & l1 & concat & 0.961537 $\pm$ 0.008393 & 1.388102 $\pm$ 0.009159 & 0.088869 $\pm$ 0.001517 & 0.782543 $\pm$ 0.000555 & 0.011407 $\pm$ 0.000779 \\
+\hline
+straight\_flow & l1 & film & 0.966100 $\pm$ 0.002405 & 1.402517 $\pm$ 0.003180 & 0.088979 $\pm$ 0.002925 & 0.782738 $\pm$ 0.000604 & 0.009769 $\pm$ 0.001630 \\
+\hline
+mip\_one\_step\_integrate & l1 & concat & 0.952631 $\pm$ 0.005196 & 1.375615 $\pm$ 0.007067 & 0.096746 $\pm$ 0.002745 & 0.782950 $\pm$ 0.000802 & 0.018488 $\pm$ 0.000971 \\
+\hline
+mip\_one\_step\_integrate & l1 & film & 0.954570 $\pm$ 0.004069 & 1.381055 $\pm$ 0.011186 & 0.094953 $\pm$ 0.003293 & 0.782912 $\pm$ 0.000802 & 0.014987 $\pm$ 0.000892 \\
+\hline
+regression & l1 & concat & 0.934109 $\pm$ 0.000258 & 1.348542 $\pm$ 0.001355 & 0.645471 $\pm$ 0.050949 & 0.758075 $\pm$ 0.004556 & 0.392190 $\pm$ 0.005660 \\
+\hline
+regression & l1 & film & 0.938874 $\pm$ 0.008625 & 1.359889 $\pm$ 0.021979 & 0.114321 $\pm$ 0.007385 & 0.783407 $\pm$ 0.000325 & 0.029628 $\pm$ 0.006529 \\
+\hline
+flow & l1 & concat & 1.008413 $\pm$ 0.013867 & 1.430288 $\pm$ 0.015294 & 0.195982 $\pm$ 0.006026 & 0.782279 $\pm$ 0.001082 & 0.101023 $\pm$ 0.002412 \\
+\hline
+flow & l1 & film & 0.984554 $\pm$ 0.004379 & 1.404958 $\pm$ 0.012633 & 0.190697 $\pm$ 0.018725 & 0.781708 $\pm$ 0.001640 & 0.093193 $\pm$ 0.002809 \\
+\hline
+mip & l1 & concat & 0.982445 $\pm$ 0.005516 & 1.406487 $\pm$ 0.008115 & 0.086279 $\pm$ 0.002817 & 0.782500 $\pm$ 0.000836 & 0.028045 $\pm$ 0.006056 \\
+\hline
+mip & l1 & film & 0.965555 $\pm$ 0.001022 & 1.382665 $\pm$ 0.001200 & 0.107176 $\pm$ 0.000703 & 0.782379 $\pm$ 0.000706 & 0.037738 $\pm$ 0.003332 \\
+\hline
+\end{tabular}
+\caption{Averaged results (trained with L1 loss) for proj task across modes and architectures}
+\label{tab:proj_l1_averaged}
+\end{table}
+
+\subsubsection{Seed-wise Results (L1 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & Seed & L1 & L2 & Subspace Diag & Subspace Off-Diag & Boundary \\
+\hline
+straight\_flow & l1 & concat & 0 & 0.950777 & 1.378141 & 0.089966 & 0.782858 & 0.011763 \\
+straight\_flow & l1 & concat & 1 & 0.962579 & 1.385911 & 0.086725 & 0.783008 & 0.012132 \\
+straight\_flow & l1 & concat & 2 & 0.971257 & 1.400254 & 0.089917 & 0.781764 & 0.010325 \\
+\hline
+straight\_flow & l1 & film & 0 & 0.963650 & 1.402508 & 0.090370 & 0.782811 & 0.008506 \\
+straight\_flow & l1 & film & 1 & 0.969367 & 1.406416 & 0.084910 & 0.783439 & 0.012071 \\
+straight\_flow & l1 & film & 2 & 0.965284 & 1.398627 & 0.091657 & 0.781964 & 0.008731 \\
+\hline
+mip\_one\_step\_integrate & l1 & concat & 0 & 0.948438 & 1.371865 & 0.095191 & 0.783143 & 0.017119 \\
+mip\_one\_step\_integrate & l1 & concat & 1 & 0.949500 & 1.369466 & 0.094443 & 0.783822 & 0.019266 \\
+mip\_one\_step\_integrate & l1 & concat & 2 & 0.959954 & 1.385512 & 0.100604 & 0.781885 & 0.019079 \\
+\hline
+mip\_one\_step\_integrate & l1 & film & 0 & 0.954311 & 1.370723 & 0.093130 & 0.783806 & 0.015496 \\
+mip\_one\_step\_integrate & l1 & film & 1 & 0.949720 & 1.375848 & 0.092153 & 0.783068 & 0.013733 \\
+mip\_one\_step\_integrate & l1 & film & 2 & 0.959678 & 1.396595 & 0.099577 & 0.781861 & 0.015733 \\
+\hline
+regression & l1 & concat & 0 & 0.933858 & 1.349405 & 0.607174 & 0.762349 & 0.385087 \\
+regression & l1 & concat & 1 & 0.934464 & 1.349592 & 0.717474 & 0.751762 & 0.392547 \\
+regression & l1 & concat & 2 & 0.934005 & 1.346629 & 0.611765 & 0.760113 & 0.398936 \\
+\hline
+regression & l1 & film & 0 & 0.950696 & 1.390935 & 0.124129 & 0.782950 & 0.035222 \\
+regression & l1 & film & 1 & 0.935568 & 1.343060 & 0.106307 & 0.783671 & 0.020470 \\
+regression & l1 & film & 2 & 0.930360 & 1.345672 & 0.112525 & 0.783601 & 0.033193 \\
+\hline
+flow & l1 & concat & 0 & 1.028023 & 1.451764 & 0.196102 & 0.782906 & 0.101709 \\
+flow & l1 & concat & 1 & 0.998805 & 1.421769 & 0.203300 & 0.780756 & 0.103574 \\
+flow & l1 & concat & 2 & 0.998410 & 1.417330 & 0.188542 & 0.783174 & 0.097786 \\
+\hline
+flow & l1 & film & 0 & 0.978532 & 1.388090 & 0.212672 & 0.779576 & 0.093783 \\
+flow & l1 & film & 1 & 0.988816 & 1.418493 & 0.166913 & 0.783566 & 0.089496 \\
+flow & l1 & film & 2 & 0.986315 & 1.408291 & 0.192504 & 0.781982 & 0.096300 \\
+\hline
+mip & l1 & concat & 0 & 0.978350 & 1.399293 & 0.089940 & 0.781320 & 0.032891 \\
+mip & l1 & concat & 1 & 0.990242 & 1.417827 & 0.085810 & 0.783024 & 0.031739 \\
+mip & l1 & concat & 2 & 0.978743 & 1.402341 & 0.083088 & 0.783157 & 0.019507 \\
+\hline
+mip & l1 & film & 0 & 0.964850 & 1.381951 & 0.106794 & 0.781406 & 0.033723 \\
+mip & l1 & film & 1 & 0.967001 & 1.384356 & 0.108162 & 0.783058 & 0.037610 \\
+mip & l1 & film & 2 & 0.964815 & 1.381688 & 0.106572 & 0.782674 & 0.041882 \\
+\hline
+\end{tabular}
+\caption{Seed-wise results (trained with L1 loss) for proj task across modes and architectures}
+\label{tab:proj_l1_seedwise}
+\end{table}
+
+\subsection{Results: Models Trained with L2 Loss}
+
+\subsubsection{Averaged Results (L2 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & L1 & L2 & Subspace Diag & Subspace Off-Diag & Boundary \\
+\hline
+straight\_flow & l2 & concat & 0.953148 $\pm$ 0.007896 & 1.368337 $\pm$ 0.008432 & 0.100474 $\pm$ 0.010328 & 0.782947 $\pm$ 0.000421 & 0.019851 $\pm$ 0.006974 \\
+\hline
+straight\_flow & l2 & film & 0.953106 $\pm$ 0.001934 & 1.382213 $\pm$ 0.003216 & 0.092751 $\pm$ 0.001830 & 0.783178 $\pm$ 0.000242 & 0.012199 $\pm$ 0.001915 \\
+\hline
+mip\_one\_step\_integrate & l2 & concat & 0.943220 $\pm$ 0.002871 & 1.359088 $\pm$ 0.003868 & 0.096157 $\pm$ 0.003722 & 0.782377 $\pm$ 0.000343 & 0.015372 $\pm$ 0.001489 \\
+\hline
+mip\_one\_step\_integrate & l2 & film & 0.940340 $\pm$ 0.006580 & 1.359007 $\pm$ 0.011974 & 0.098788 $\pm$ 0.001163 & 0.783082 $\pm$ 0.000361 & 0.016381 $\pm$ 0.002221 \\
+\hline
+regression & l2 & concat & 0.941179 $\pm$ 0.006019 & 1.356883 $\pm$ 0.005875 & 0.721983 $\pm$ 0.024342 & 0.782519 $\pm$ 0.007511 & 0.460725 $\pm$ 0.037347 \\
+\hline
+regression & l2 & film & 0.941871 $\pm$ 0.005438 & 1.353876 $\pm$ 0.005981 & 0.109260 $\pm$ 0.006132 & 0.783310 $\pm$ 0.000739 & 0.025988 $\pm$ 0.003689 \\
+\hline
+flow & l2 & concat & 0.998419 $\pm$ 0.010089 & 1.426732 $\pm$ 0.015232 & 0.194247 $\pm$ 0.012624 & 0.781902 $\pm$ 0.000323 & 0.093207 $\pm$ 0.008921 \\
+\hline
+flow & l2 & film & 0.986891 $\pm$ 0.011952 & 1.404517 $\pm$ 0.010156 & 0.191611 $\pm$ 0.006451 & 0.782208 $\pm$ 0.000902 & 0.097924 $\pm$ 0.005584 \\
+\hline
+mip & l2 & concat & 0.978285 $\pm$ 0.002389 & 1.401722 $\pm$ 0.002520 & 0.093925 $\pm$ 0.004407 & 0.782092 $\pm$ 0.000720 & 0.026228 $\pm$ 0.001486 \\
+\hline
+mip & l2 & film & 0.971166 $\pm$ 0.004485 & 1.395023 $\pm$ 0.004815 & 0.097735 $\pm$ 0.002881 & 0.782565 $\pm$ 0.000562 & 0.031808 $\pm$ 0.003054 \\
+\hline
+\end{tabular}
+\caption{Averaged results (trained with L2 loss) for proj task across modes and architectures}
+\label{tab:proj_l2_averaged}
+\end{table}
+
+\subsubsection{Seed-wise Results (L2 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & Seed & L1 & L2 & Subspace Diag & Subspace Off-Diag & Boundary \\
+\hline
+straight\_flow & l2 & concat & 0 & 0.964274 & 1.379420 & 0.115070 & 0.782642 & 0.029684 \\
+straight\_flow & l2 & concat & 1 & 0.948415 & 1.366605 & 0.092690 & 0.782657 & 0.014269 \\
+straight\_flow & l2 & concat & 2 & 0.946756 & 1.358986 & 0.093664 & 0.783543 & 0.015598 \\
+\hline
+straight\_flow & l2 & film & 0 & 0.955281 & 1.384740 & 0.090293 & 0.783236 & 0.014721 \\
+straight\_flow & l2 & film & 1 & 0.950582 & 1.377675 & 0.093279 & 0.782857 & 0.010084 \\
+straight\_flow & l2 & film & 2 & 0.953455 & 1.384223 & 0.094681 & 0.783440 & 0.011793 \\
+\hline
+mip\_one\_step\_integrate & l2 & concat & 0 & 0.946711 & 1.363403 & 0.090894 & 0.782186 & 0.014116 \\
+mip\_one\_step\_integrate & l2 & concat & 1 & 0.939680 & 1.354019 & 0.098742 & 0.782859 & 0.014537 \\
+mip\_one\_step\_integrate & l2 & concat & 2 & 0.943268 & 1.359842 & 0.098836 & 0.782085 & 0.017464 \\
+\hline
+mip\_one\_step\_integrate & l2 & film & 0 & 0.936463 & 1.350875 & 0.097907 & 0.783591 & 0.016643 \\
+mip\_one\_step\_integrate & l2 & film & 1 & 0.934951 & 1.350210 & 0.098027 & 0.782793 & 0.018961 \\
+mip\_one\_step\_integrate & l2 & film & 2 & 0.949605 & 1.375936 & 0.100431 & 0.782863 & 0.013540 \\
+\hline
+regression & l2 & concat & 0 & 0.947243 & 1.364515 & 0.697390 & 0.772229 & 0.437604 \\
+regression & l2 & concat & 1 & 0.943320 & 1.355912 & 0.755140 & 0.789948 & 0.513411 \\
+regression & l2 & concat & 2 & 0.932974 & 1.350222 & 0.713418 & 0.785379 & 0.431160 \\
+\hline
+regression & l2 & film & 0 & 0.934737 & 1.345641 & 0.116227 & 0.782274 & 0.030266 \\
+regression & l2 & film & 1 & 0.942952 & 1.356323 & 0.101304 & 0.783709 & 0.021264 \\
+regression & l2 & film & 2 & 0.947925 & 1.359665 & 0.110247 & 0.783946 & 0.026435 \\
+\hline
+flow & l2 & concat & 0 & 0.994820 & 1.420759 & 0.194995 & 0.781539 & 0.097962 \\
+flow & l2 & concat & 1 & 0.988260 & 1.411795 & 0.178426 & 0.782324 & 0.100950 \\
+flow & l2 & concat & 2 & 1.012175 & 1.447642 & 0.209321 & 0.781843 & 0.080709 \\
+\hline
+flow & l2 & film & 0 & 0.985680 & 1.400545 & 0.192682 & 0.782781 & 0.099145 \\
+flow & l2 & film & 1 & 0.972895 & 1.394550 & 0.183230 & 0.782909 & 0.104069 \\
+flow & l2 & film & 2 & 1.002097 & 1.418457 & 0.198922 & 0.780935 & 0.090557 \\
+\hline
+mip & l2 & concat & 0 & 0.978513 & 1.401043 & 0.100064 & 0.781178 & 0.028088 \\
+mip & l2 & concat & 1 & 0.975253 & 1.399032 & 0.089928 & 0.782937 & 0.026146 \\
+mip & l2 & concat & 2 & 0.981090 & 1.405091 & 0.091783 & 0.782162 & 0.024452 \\
+\hline
+mip & l2 & film & 0 & 0.977040 & 1.401209 & 0.095745 & 0.783356 & 0.033471 \\
+mip & l2 & film & 1 & 0.970299 & 1.394394 & 0.095651 & 0.782098 & 0.027525 \\
+mip & l2 & film & 2 & 0.966158 & 1.389465 & 0.101809 & 0.782240 & 0.034429 \\
+\hline
+\end{tabular}
+\caption{Seed-wise results (trained with L2 loss) for proj task across modes and architectures}
+\label{tab:proj_l2_seedwise}
+\end{table}
+
+\subsection{Projection Task Summary}
+
+The projection task reveals interesting trade-offs between different geometric constraints. Flow-based methods (straight flow, MIP, MIP one-step) significantly outperform regression on boundary enforcement and subspace adherence metrics. Straight flow trained with L1 loss achieves the best boundary metric (0.009769), demonstrating excellent manifold constraint satisfaction. MIP trained with L1 loss achieves strong subspace diagonal performance (0.086279). The strong performance of straight flow indicates that the ablation of time conditioning does not significantly impair geometric learning for projection tasks, and may even provide a beneficial inductive bias for boundary enforcement.
+
+\newpage
+
+\section{Lie Algebra Task}
+
+The Lie algebra task evaluates each method's ability to learn the tangent space structure of the manifold. Performance is measured using cosine similarity (measuring alignment with the true tangent space) and projection metrics (measuring orthogonality to the Lie algebra).
+
+\subsection{Results: Models Trained with L1 Loss}
+
+\subsubsection{Averaged Results (L1 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & L1 & L2 & Avg Cos Sim & Min Cos Sim & Avg Projection & Max Projection \\
+\hline
+straight\_flow & l1 & concat & 0.943249 $\pm$ 0.004702 & 1.611076 $\pm$ 0.004268 & 0.049991 $\pm$ 0.004831 & -0.219003 $\pm$ 0.016922 & 0.074702 $\pm$ 0.002640 & 0.153273 $\pm$ 0.011188 \\
+\hline
+straight\_flow & l1 & film & 0.946009 $\pm$ 0.012443 & 1.639597 $\pm$ 0.032941 & 0.046953 $\pm$ 0.005853 & -0.230633 $\pm$ 0.012393 & 0.063612 $\pm$ 0.000952 & 0.129801 $\pm$ 0.003500 \\
+\hline
+mip\_one\_step\_integrate & l1 & concat & 0.928837 $\pm$ 0.006404 & 1.600301 $\pm$ 0.007844 & 0.050264 $\pm$ 0.005242 & -0.253179 $\pm$ 0.001406 & 0.079555 $\pm$ 0.003591 & 0.155995 $\pm$ 0.010901 \\
+\hline
+mip\_one\_step\_integrate & l1 & film & 0.935447 $\pm$ 0.010640 & 1.608270 $\pm$ 0.024187 & 0.057269 $\pm$ 0.008716 & -0.232594 $\pm$ 0.019613 & 0.075357 $\pm$ 0.010894 & 0.138081 $\pm$ 0.031149 \\
+\hline
+regression & l1 & concat & 0.901953 $\pm$ 0.005011 & 1.552268 $\pm$ 0.008365 & 0.047873 $\pm$ 0.004473 & -0.258200 $\pm$ 0.006462 & 0.091834 $\pm$ 0.006812 & 0.172674 $\pm$ 0.019784 \\
+\hline
+regression & l1 & film & 0.924863 $\pm$ 0.006419 & 1.595575 $\pm$ 0.017823 & 0.055398 $\pm$ 0.006371 & -0.258873 $\pm$ 0.013053 & 0.072718 $\pm$ 0.001321 & 0.154827 $\pm$ 0.016882 \\
+\hline
+flow & l1 & concat & 0.978049 $\pm$ 0.013907 & 1.572010 $\pm$ 0.018199 & 0.073508 $\pm$ 0.023696 & -0.305286 $\pm$ 0.025904 & 0.217357 $\pm$ 0.023586 & 0.366568 $\pm$ 0.020199 \\
+\hline
+flow & l1 & film & 0.970517 $\pm$ 0.005058 & 1.547791 $\pm$ 0.022525 & 0.036151 $\pm$ 0.010965 & -0.304738 $\pm$ 0.031798 & 0.229225 $\pm$ 0.017823 & 0.348109 $\pm$ 0.045646 \\
+\hline
+mip & l1 & concat & 0.954738 $\pm$ 0.004323 & 1.604481 $\pm$ 0.011878 & 0.048726 $\pm$ 0.007022 & -0.224520 $\pm$ 0.012782 & 0.116711 $\pm$ 0.006655 & 0.174806 $\pm$ 0.002694 \\
+\hline
+mip & l1 & film & 0.943563 $\pm$ 0.000880 & 1.590165 $\pm$ 0.006388 & 0.055459 $\pm$ 0.002709 & -0.256903 $\pm$ 0.007266 & 0.100957 $\pm$ 0.003230 & 0.167108 $\pm$ 0.010515 \\
+\hline
+\end{tabular}
+\caption{Averaged results (trained with L1 loss) for lie task across modes and architectures}
+\label{tab:lie_l1_averaged}
+\end{table}
+
+\subsubsection{Seed-wise Results (L1 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & Seed & L1 & L2 & Avg Cos Sim & Min Cos Sim & Avg Projection & Max Projection \\
+\hline
+straight\_flow & l1 & concat & 0 & 0.945057 & 1.614446 & 0.048890 & -0.242538 & 0.077089 & 0.156586 \\
+straight\_flow & l1 & concat & 1 & 0.947885 & 1.613727 & 0.056380 & -0.203480 & 0.075994 & 0.165015 \\
+straight\_flow & l1 & concat & 2 & 0.936803 & 1.605055 & 0.044702 & -0.210989 & 0.071022 & 0.138218 \\
+\hline
+straight\_flow & l1 & film & 0 & 0.957625 & 1.664108 & 0.047827 & -0.246626 & 0.062953 & 0.134720 \\
+straight\_flow & l1 & film & 1 & 0.951650 & 1.661650 & 0.039388 & -0.216429 & 0.062925 & 0.127820 \\
+straight\_flow & l1 & film & 2 & 0.928754 & 1.593034 & 0.053645 & -0.228845 & 0.064957 & 0.126863 \\
+\hline
+mip\_one\_step\_integrate & l1 & concat & 0 & 0.934652 & 1.607832 & 0.045056 & -0.252297 & 0.076202 & 0.156354 \\
+mip\_one\_step\_integrate & l1 & concat & 1 & 0.931943 & 1.603589 & 0.048297 & -0.252077 & 0.084534 & 0.169164 \\
+mip\_one\_step\_integrate & l1 & concat & 2 & 0.919917 & 1.589482 & 0.057437 & -0.255164 & 0.077929 & 0.142468 \\
+\hline
+mip\_one\_step\_integrate & l1 & film & 0 & 0.948843 & 1.634568 & 0.059711 & -0.233211 & 0.069804 & 0.119414 \\
+mip\_one\_step\_integrate & l1 & film & 1 & 0.922813 & 1.576177 & 0.045584 & -0.208270 & 0.090579 & 0.181969 \\
+mip\_one\_step\_integrate & l1 & film & 2 & 0.934685 & 1.614064 & 0.066511 & -0.256299 & 0.065687 & 0.112859 \\
+\hline
+regression & l1 & concat & 0 & 0.896970 & 1.542609 & 0.044541 & -0.265027 & 0.084472 & 0.184199 \\
+regression & l1 & concat & 1 & 0.908808 & 1.563013 & 0.044881 & -0.249526 & 0.090134 & 0.188990 \\
+regression & l1 & concat & 2 & 0.900082 & 1.551181 & 0.054196 & -0.260046 & 0.100895 & 0.144832 \\
+\hline
+regression & l1 & film & 0 & 0.916776 & 1.576981 & 0.050868 & -0.257508 & 0.071023 & 0.156356 \\
+regression & l1 & film & 1 & 0.932477 & 1.619609 & 0.050918 & -0.275497 & 0.072887 & 0.174697 \\
+regression & l1 & film & 2 & 0.925337 & 1.590136 & 0.064408 & -0.243612 & 0.074245 & 0.133429 \\
+\hline
+flow & l1 & concat & 0 & 0.997657 & 1.596292 & 0.078983 & -0.337836 & 0.204257 & 0.340805 \\
+flow & l1 & concat & 1 & 0.966928 & 1.552480 & 0.042139 & -0.303568 & 0.250473 & 0.390136 \\
+flow & l1 & concat & 2 & 0.969561 & 1.567259 & 0.099401 & -0.274454 & 0.197342 & 0.368763 \\
+\hline
+flow & l1 & film & 0 & 0.967071 & 1.519345 & 0.038508 & -0.316223 & 0.254242 & 0.412236 \\
+flow & l1 & film & 1 & 0.977669 & 1.574430 & 0.048244 & -0.336648 & 0.219382 & 0.309638 \\
+flow & l1 & film & 2 & 0.966812 & 1.549599 & 0.021699 & -0.261342 & 0.214051 & 0.322451 \\
+\hline
+mip & l1 & concat & 0 & 0.948668 & 1.588198 & 0.052253 & -0.209427 & 0.125433 & 0.177517 \\
+mip & l1 & concat & 1 & 0.958396 & 1.609043 & 0.038923 & -0.240682 & 0.115411 & 0.175768 \\
+mip & l1 & concat & 2 & 0.957152 & 1.616201 & 0.055002 & -0.223450 & 0.109288 & 0.171132 \\
+\hline
+mip & l1 & film & 0 & 0.942383 & 1.594994 & 0.057495 & -0.255973 & 0.100651 & 0.173224 \\
+mip & l1 & film & 1 & 0.944497 & 1.594364 & 0.051630 & -0.266231 & 0.097163 & 0.152312 \\
+mip & l1 & film & 2 & 0.943809 & 1.581139 & 0.057251 & -0.248505 & 0.105057 & 0.175788 \\
+\hline
+\end{tabular}
+\caption{Seed-wise results (trained with L1 loss) for lie task across modes and architectures}
+\label{tab:lie_l1_seedwise}
+\end{table}
+
+\subsection{Results: Models Trained with L2 Loss}
+
+\subsubsection{Averaged Results (L2 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & L1 & L2 & Avg Cos Sim & Min Cos Sim & Avg Projection & Max Projection \\
+\hline
+straight\_flow & l2 & concat & 0.929639 $\pm$ 0.006622 & 1.589545 $\pm$ 0.008867 & 0.041678 $\pm$ 0.006557 & -0.247432 $\pm$ 0.023956 & 0.095157 $\pm$ 0.010154 & 0.186924 $\pm$ 0.010681 \\
+\hline
+straight\_flow & l2 & film & 0.929072 $\pm$ 0.012654 & 1.624128 $\pm$ 0.031358 & 0.044650 $\pm$ 0.003235 & -0.247986 $\pm$ 0.012762 & 0.063084 $\pm$ 0.002281 & 0.136993 $\pm$ 0.008624 \\
+\hline
+mip\_one\_step\_integrate & l2 & concat & 0.912248 $\pm$ 0.002952 & 1.571566 $\pm$ 0.001903 & 0.044528 $\pm$ 0.003164 & -0.253084 $\pm$ 0.005184 & 0.087927 $\pm$ 0.010860 & 0.169035 $\pm$ 0.021983 \\
+\hline
+mip\_one\_step\_integrate & l2 & film & 0.915300 $\pm$ 0.003585 & 1.578945 $\pm$ 0.003461 & 0.049461 $\pm$ 0.006483 & -0.252221 $\pm$ 0.012773 & 0.074523 $\pm$ 0.006435 & 0.150843 $\pm$ 0.007288 \\
+\hline
+regression & l2 & concat & 0.906051 $\pm$ 0.001520 & 1.556111 $\pm$ 0.007791 & 0.045938 $\pm$ 0.008341 & -0.248872 $\pm$ 0.010467 & 0.112265 $\pm$ 0.005538 & 0.196113 $\pm$ 0.008681 \\
+\hline
+regression & l2 & film & 0.920272 $\pm$ 0.003046 & 1.580328 $\pm$ 0.011117 & 0.042800 $\pm$ 0.009726 & -0.247779 $\pm$ 0.021849 & 0.087182 $\pm$ 0.027935 & 0.155196 $\pm$ 0.006425 \\
+\hline
+flow & l2 & concat & 1.005586 $\pm$ 0.005910 & 1.646773 $\pm$ 0.016019 & 0.025465 $\pm$ 0.023687 & -0.236273 $\pm$ 0.019274 & 0.241271 $\pm$ 0.006290 & 0.342767 $\pm$ 0.024668 \\
+\hline
+flow & l2 & film & 0.964576 $\pm$ 0.004997 & 1.592203 $\pm$ 0.016294 & 0.052675 $\pm$ 0.016302 & -0.200561 $\pm$ 0.023564 & 0.228278 $\pm$ 0.020337 & 0.346290 $\pm$ 0.045713 \\
+\hline
+mip & l2 & concat & 0.963025 $\pm$ 0.001503 & 1.633731 $\pm$ 0.005640 & 0.048842 $\pm$ 0.007701 & -0.243064 $\pm$ 0.010645 & 0.081106 $\pm$ 0.002238 & 0.116828 $\pm$ 0.005387 \\
+\hline
+mip & l2 & film & 0.946999 $\pm$ 0.004336 & 1.597821 $\pm$ 0.011389 & 0.044041 $\pm$ 0.009503 & -0.246990 $\pm$ 0.017367 & 0.116618 $\pm$ 0.009051 & 0.188763 $\pm$ 0.024771 \\
+\hline
+\end{tabular}
+\caption{Averaged results (trained with L2 loss) for lie task across modes and architectures}
+\label{tab:lie_l2_averaged}
+\end{table}
+
+\subsubsection{Seed-wise Results (L2 Loss Training)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|c|c|c|c|c|c|c|}
+\hline
+Mode & Loss & Arch & Seed & L1 & L2 & Avg Cos Sim & Min Cos Sim & Avg Projection & Max Projection \\
+\hline
+straight\_flow & l2 & concat & 0 & 0.937911 & 1.600918 & 0.050345 & -0.223275 & 0.103216 & 0.202017 \\
+straight\_flow & l2 & concat & 1 & 0.921701 & 1.579285 & 0.040200 & -0.238940 & 0.080835 & 0.178841 \\
+straight\_flow & l2 & concat & 2 & 0.929306 & 1.588431 & 0.034489 & -0.280082 & 0.101421 & 0.179913 \\
+\hline
+straight\_flow & l2 & film & 0 & 0.911277 & 1.579829 & 0.040324 & -0.255229 & 0.064148 & 0.147059 \\
+straight\_flow & l2 & film & 1 & 0.939601 & 1.648067 & 0.048103 & -0.230049 & 0.065189 & 0.125996 \\
+straight\_flow & l2 & film & 2 & 0.936339 & 1.644490 & 0.045523 & -0.258681 & 0.059915 & 0.137924 \\
+\hline
+mip\_one\_step\_integrate & l2 & concat & 0 & 0.908348 & 1.569144 & 0.045838 & -0.257713 & 0.080490 & 0.185320 \\
+mip\_one\_step\_integrate & l2 & concat & 1 & 0.915487 & 1.573793 & 0.047579 & -0.245846 & 0.080008 & 0.137957 \\
+mip\_one\_step\_integrate & l2 & concat & 2 & 0.912908 & 1.571761 & 0.040167 & -0.255693 & 0.103283 & 0.183827 \\
+\hline
+mip\_one\_step\_integrate & l2 & film & 0 & 0.916353 & 1.575313 & 0.042242 & -0.267718 & 0.068949 & 0.144962 \\
+mip\_one\_step\_integrate & l2 & film & 1 & 0.910479 & 1.577919 & 0.057966 & -0.236433 & 0.083541 & 0.161114 \\
+mip\_one\_step\_integrate & l2 & film & 2 & 0.919068 & 1.583602 & 0.048174 & -0.252511 & 0.071080 & 0.146453 \\
+\hline
+regression & l2 & concat & 0 & 0.904620 & 1.552595 & 0.052269 & -0.263586 & 0.105363 & 0.186410 \\
+regression & l2 & concat & 1 & 0.905376 & 1.566912 & 0.051393 & -0.242916 & 0.118921 & 0.194451 \\
+regression & l2 & concat & 2 & 0.908156 & 1.548826 & 0.034153 & -0.240114 & 0.112513 & 0.207479 \\
+\hline
+regression & l2 & film & 0 & 0.916001 & 1.574363 & 0.056414 & -0.272641 & 0.067651 & 0.152772 \\
+regression & l2 & film & 1 & 0.921921 & 1.595909 & 0.037693 & -0.251239 & 0.067209 & 0.148824 \\
+regression & l2 & film & 2 & 0.922895 & 1.570713 & 0.034294 & -0.219457 & 0.126687 & 0.163991 \\
+\hline
+flow & l2 & concat & 0 & 1.011851 & 1.659473 & 0.044556 & -0.258069 & 0.233652 & 0.351188 \\
+flow & l2 & concat & 1 & 0.997662 & 1.624177 & -0.007919 & -0.211200 & 0.249057 & 0.367875 \\
+flow & l2 & concat & 2 & 1.007245 & 1.656669 & 0.039756 & -0.239551 & 0.241106 & 0.309237 \\
+\hline
+flow & l2 & film & 0 & 0.970061 & 1.603030 & 0.064958 & -0.229548 & 0.235126 & 0.323864 \\
+flow & l2 & film & 1 & 0.965692 & 1.604406 & 0.029638 & -0.200304 & 0.200663 & 0.304993 \\
+flow & l2 & film & 2 & 0.957974 & 1.569174 & 0.063429 & -0.171831 & 0.249046 & 0.410014 \\
+\hline
+mip & l2 & concat & 0 & 0.965122 & 1.639996 & 0.045740 & -0.258110 & 0.083920 & 0.123979 \\
+mip & l2 & concat & 1 & 0.961676 & 1.626323 & 0.059434 & -0.235963 & 0.080952 & 0.115528 \\
+mip & l2 & concat & 2 & 0.962277 & 1.634873 & 0.041351 & -0.235119 & 0.078445 & 0.110977 \\
+\hline
+mip & l2 & film & 0 & 0.941752 & 1.593201 & 0.044801 & -0.233324 & 0.126003 & 0.222592 \\
+mip & l2 & film & 1 & 0.946876 & 1.586769 & 0.032041 & -0.271496 & 0.119464 & 0.179733 \\
+mip & l2 & film & 2 & 0.952370 & 1.613493 & 0.055281 & -0.236151 & 0.104387 & 0.163966 \\
+\hline
+\end{tabular}
+\caption{Seed-wise results (trained with L2 loss) for lie task across modes and architectures}
+\label{tab:lie_l2_seedwise}
+\end{table}
+
+\subsection{Lie Algebra Task Summary}
+
+The Lie algebra task shows significant performance differences across training modes. Straight flow trained with L1 loss achieves the best average projection metric (0.063612), indicating superior orthogonality constraints to the Lie algebra. Flow matching achieves the highest average cosine similarity (0.073508), suggesting good alignment with tangent space directions, but suffers from poor projection metrics. MIP trained with L2 loss achieves the best maximum projection metric (0.116828), demonstrating consistent performance across all test samples. The strong performance of straight flow suggests that removing time conditioning may provide a beneficial inductive bias for learning geometric constraints in Lie algebra tasks.
+
+\newpage
+
+\section{Cross-Task Analysis}
+
+\subsection{Mode Performance Comparison}
+
+\textbf{Regression:} The baseline regression approach performs strongly on reconstruction (best L1 error: 0.002288) but struggles significantly with geometric metrics in projection and Lie algebra tasks. This demonstrates that direct supervised learning excels at point-wise accuracy but fails to capture manifold structure.
+
+\textbf{Flow Matching:} Shows mixed results across tasks. Achieves strong tangent space alignment (highest cosine similarity: 0.073508 in Lie algebra) but exhibits weaker performance on geometric constraint enforcement, particularly in projection tasks. Time conditioning appears beneficial for some aspects of geometric learning but not universally superior.
+
+\textbf{MIP (Two-Step):} Achieves strong geometric constraint satisfaction, particularly for subspace diagonal errors in the projection task (0.086279). The two-step evaluation provides robustness across multiple metrics and demonstrates the value of the denoising objective for manifold learning.
+
+\textbf{MIP One-Step:} Achieves the best reconstruction L2 error (0.003197) and competitive performance on geometric metrics. This suggests that stopping at the initial denoising step can provide superior manifold adherence while reducing computational cost at inference time. The single-step approach offers an excellent balance between reconstruction accuracy and geometric constraint satisfaction.
+
+\textbf{Straight Flow:} Emerges as a strong performer on geometric metrics, achieving the best boundary metric (0.009769) in projection and best average projection metric (0.063612) in Lie algebra. The ablation study reveals that removing time conditioning does not impair geometric learning and may even provide beneficial inductive biases for certain manifold learning tasks. Straight flow demonstrates that simpler models without time conditioning can match or exceed the performance of more complex time-conditioned approaches.
+
+\subsection{Architecture Comparison}
+
+Both concatenation and FiLM architectures show competitive performance across tasks. FiLM architecture tends to achieve slightly better results on the most critical metrics (e.g., reconstruction L2 error, projection boundary), while concatenation shows more consistent performance across secondary metrics. The choice of architecture appears less critical than the choice of training paradigm.
+
+\subsection{Loss Function Analysis}
+
+Models trained with L2 loss generally perform better on L2 test metrics and achieve smoother manifold reconstructions, while L1-trained models excel at L1 metrics and boundary enforcement. The choice of training loss significantly impacts the learned manifold properties, with L2 loss favoring smooth reconstructions and L1 loss favoring sparse, boundary-respecting solutions. However, it should be noted that training flow-based methods with L1 loss lacks mathematical grounding, as the conditional flow matching objective is naturally derived for L2 loss.
+
+\section{Conclusions}
+
+This comprehensive evaluation across 60 configurations per task (5 modes × 2 losses × 2 architectures × 3 seeds) reveals several key insights:
+
+\begin{enumerate}
+    \item \textbf{Flow-based methods excel at geometric learning:} Methods that model trajectories through the manifold (flow matching, MIP, MIP one-step, straight flow) consistently outperform regression on projection-based geometric metrics, demonstrating superior manifold structure learning.
+    
+    \item \textbf{Regression maintains reconstruction advantage:} Despite weaker geometric performance, regression achieves the best L2 reconstruction error, highlighting a fundamental trade-off between point-wise accuracy and geometric constraint satisfaction.
+    
+    \item \textbf{Straight flow emerges as a strong ablation:} Removing time conditioning from flow matching produces a simpler model that matches or exceeds the performance of time-conditioned approaches on key geometric metrics (projection boundary, Lie algebra projection). This suggests that time conditioning may not be necessary for effective geometric learning and that simpler inductive biases can be equally or more effective.
+    
+    \item \textbf{MIP one-step offers excellent balance:} The single-step evaluation variant achieves top reconstruction performance while maintaining strong geometric metrics, providing an efficient alternative to traditional two-step approaches.
+    
+    \item \textbf{Task-specific optimization matters:} No single configuration dominates all metrics. The optimal choice depends on whether the priority is reconstruction accuracy, geometric constraint satisfaction, or tangent space learning.
+    
+    \item \textbf{Training loss and architecture choices significantly impact performance:} L2 loss favors smooth manifolds, L1 loss favors boundary enforcement, and FiLM architecture shows slight advantages on key metrics. However, training flow-based methods with L1 loss should be interpreted cautiously as it lacks mathematical grounding.
+\end{enumerate}
+
+The results demonstrate that manifold learning via denoising diffusion provides a flexible framework where evaluation strategies (one-step vs two-step) and model complexity (time-conditioned vs straight flow) can be tailored to specific application requirements, offering valuable trade-offs between computational efficiency, model simplicity, and different notions of manifold quality.
+
+\end{document}

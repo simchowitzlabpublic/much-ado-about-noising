@@ -1,0 +1,81 @@
+# Configuration for Lie Algebra Rotation Experiment (REDESIGNED)
+#
+# Target function: fᵢ(α, c) = wᵢ(c) · exp(αᵢ·c · A) · e₁
+# Output: concat(f₁, f₂, ..., fₖ) ∈ ℝ^(K·rotation_dim)
+
+experiment:
+  name: "lie_rotation_redesign"
+  mode: "mip"  # 'regression' or 'flow' or 'mip'
+  seed: 42
+  device: "cpu"  # 'cpu' or 'cuda'
+  output_dir: "./outputs/lie_rotation_redesign"
+
+dataset:
+  type: "LieAlgebraRotationDataset"
+  
+  # Sampling parameters
+  num_c_train: 50  # Number of c samples for training
+  num_c_eval: 100000  # Number of c samples for evaluation
+  
+  # Rotation parameters
+  rotation_dim: 2  # 2 for SO(2), 3 for SO(3)
+  num_rotations: 8  # Number of components K
+  
+  # Domain
+  c_min: 0.0
+  c_max: 1.0
+  
+  # Alpha velocities (rotation speeds)
+  # Option 1: Provide explicit values
+  alpha_values: null  # [0.5, 1.0, 1.5, 2.0, 2.5]  # List of K values
+  
+  # Option 2: Generate linearly spaced values (used if alpha_values is null)
+  alpha_min: 0.0
+  alpha_max: 6.28  # 2π
+  
+  # Weight functions
+  weight_mode: "high_frequency"  # 'constant' or 'high_frequency'
+  num_weight_components: 8  # Only used if weight_mode='high_frequency'
+  weight_strategy: "uniform"  # 'uniform' or 'inverse_freq'
+  
+  # Sampling strategy
+  sampling_strategy: "grid"  # 'grid' or 'random'
+  
+  # Random seeds
+  rotation_seed: 42
+  weight_seed: 43
+  sample_seed: 44
+
+network:
+  architecture: "concat"  # 'concat' or 'film'
+  hidden_dim: 256
+  num_layers: 3
+  activation: "relu"  # 'relu', 'gelu', 'silu', 'tanh'
+
+training:
+  # Optimizer
+  learning_rate: 0.001
+  batch_size: 32  # Set to dataset size for full-batch training
+  num_epochs: 50000
+  
+  # Loss
+  loss_type: "l2"  # 'l1' or 'l2' (for regression mode)
+  loss_aggregation: "full"  # 'full' or 'per_component'
+  
+  # Initial distribution for flow
+  initial_dist: "gaussian"  # 'zeros' or 'gaussian'
+  
+  # MIP parameters (only used if mode='mip')
+  mip_t_star: 0.9  # Fixed time point for denoising term
+  
+  # Logging
+  log_interval: 1000
+  eval_interval: 50000
+  save_interval: 50000
+
+evaluation:
+  num_eval_steps: [1, 9]  # ODE integration steps (for flow mode)
+  integration_method: "euler"  # 'euler' or 'rk4'
+  compute_cosine_similarity: true  # Compute cos_err metrics
+  # Initial distribution for flow
+  initial_dist: "zeros"  # 'zeros' or 'gaussian'

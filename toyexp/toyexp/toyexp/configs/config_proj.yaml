@@ -1,0 +1,71 @@
+# Configuration for projection experiment
+# Compare regression vs flow models with high-dim output in low-dim subspace
+
+# Experiment settings
+experiment:
+  name: "proj_experiment"
+  mode: "mip"  # 'regression' or 'flow' or 'mip'
+  seed: 42
+  seed: 42
+  device: "cuda"  # or "cpu"
+  output_dir: "./outputs/proj"
+
+# Dataset configuration
+dataset:
+  type: "ProjectedTargetFunctionDataset"
+  num_train: 50
+  num_eval: 100000
+  target_dim: 8  # High-dimensional output
+  condition_dim: 1
+  c_min: 0.0
+  c_max: 1.0
+  
+  # Target function parameters
+  num_components: 8
+  weight_strategy: "uniform"  # or "inverse_freq"
+  sampling_strategy: "grid"  # or "random"
+  
+  # Projection parameters
+  low_dim: 3  # Dimension of subspace (rank of projection matrix)
+  num_intervals: 10  # Number of intervals for piecewise projections
+  
+  # Seeds for reproducibility
+  freq_seed: 42
+  phase_seed: 43
+  weight_seed: 44
+  proj_seed: 46
+  sample_seed: 45
+
+# Network configuration
+network:
+  architecture: "concat"  # or "film"
+  hidden_dim: 256
+  num_layers: 3
+  activation: "relu"
+
+# Training configuration
+training:
+  loss_type: "l2"
+  batch_size: 32
+  num_epochs: 50000
+  learning_rate: 0.001
+  
+  # Logging
+  log_interval: 1000
+  eval_interval: 50000
+  save_interval: 50000
+  
+  # Initial distribution (for flow models)
+  initial_dist: "gaussian"  # or "gaussian"
+  
+  # MIP parameters (only used if mode='mip')
+  mip_t_star: 0.9  # Fixed time point for denoising term
+
+# Evaluation configuration
+evaluation:
+  num_eval_steps: [1, 9]  # ODE integration steps (for flow mode)
+  integration_method: "euler"  # or "rk4"
+  # Initial distribution for flow
+  initial_dist: "zeros"  # 'zeros' or 'gaussian'  
+  # Projection analysis
+  analyze_subspace: true  # Whether to analyze learned vs true subspace

@@ -163,23 +163,68 @@ def mip_loss(
     noise = torch.empty_like(act).normal_(0, 1)
     act_t = act + (1 - config.t_two_step) * noise
 
+    # NOTE: in paper, we use
+    # act_t = config.t_two_step * act + (1 - config.t_two_step) * noise
+    # but we found that this is not necessary when config.t_two_step close to 1.
+    # feel free to use the original form if you want to, you can refer to mip_origin_loss
+
     # get condition
     obs_emb = encoder(obs, None)
 
     # predict
     # for first step, scale network output by t_two_step to match the scale of the second step
     # equivalent form: directly let first step predict act
-    act_pred_0 = config.t_two_step * flow_map.get_velocity(s, act_0, obs_emb)
+    act_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
     act_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
 
     # compute loss
     # difference compared to tsd: no stochasticity in prediction
-    loss0 = (
-        get_norm(act_pred_0 - config.t_two_step * act, config.norm_type)
-        / (config.t_two_step)
-    ) ** 2
+    loss0 = (get_norm(act_pred_0 - act, config.norm_type) / (config.t_two_step)) ** 2
     loss1 = (
         get_norm(act_pred_1 - act, config.norm_type) / (1 - config.t_two_step)
+    ) ** 2
+    loss = loss0 + loss1
+    loss = config.loss_scale * torch.mean(loss)
+
+    return loss, {}
+
+
+def mip_origin_loss(
+    config: OptimizationConfig,
+    flow_map: FlowMap,
+    encoder: BaseEncoder,
+    interp: Interpolant,
+    act: torch.Tensor,
+    obs: torch.Tensor,
+    delta_t: torch.Tensor,
+) -> float:
+    """Minimum iterative policy loss (original form with scale in first iteration)."""
+    # sample
+    s = torch.zeros_like(delta_t, device=delta_t.device)
+    t = torch.zeros_like(delta_t, device=delta_t.device) + config.t_two_step
+    # major difference compared to tsd: remove stochasticity in input
+    act_0 = torch.zeros_like(act, device=act.device)
+    noise = torch.empty_like(act).normal_(0, 1)
+    act_t = config.t_two_step * act + (1 - config.t_two_step) * noise
+
+    # get condition
+    obs_emb = encoder(obs, None)
+
+    # predict
+    # for first step, scale network output by t_two_step to match the scale of the second step
+    # equivalent form: directly let first step predict act
+    act_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
+    act_target_0 = config.t_two_step * act
+    act_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
+    act_target_1 = act
+
+    # compute loss
+    # difference compared to tsd: no stochasticity in prediction
+    loss0 = (
+        get_norm(act_pred_0 - act_target_0, config.norm_type) / (config.t_two_step)
+    ) ** 2
+    loss1 = (
+        get_norm(act_pred_1 - act_target_1, config.norm_type) / (1 - config.t_two_step)
     ) ** 2
     loss = loss0 + loss1
     loss = config.loss_scale * torch.mean(loss)

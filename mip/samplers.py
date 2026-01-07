@@ -124,6 +124,9 @@ def mip_sampler(
     act_0: torch.Tensor,
     obs: torch.Tensor,
 ):
+    """Simplified minimum iterative policy
+    Note that now the first step prediction is not scaled by t_two_step,
+    """
     bs = act_0.shape[0]
     s = torch.zeros((bs,), device=act_0.device)
     t = torch.full((bs,), config.t_two_step, device=act_0.device)
@@ -132,7 +135,31 @@ def mip_sampler(
 
     act_0 = torch.zeros_like(act_0, device=act_0.device)
     act_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
+    # NOTE: now the first step prediction is not scaled by t_two_step,
+    # if you want the original form, you can use the mip_origin_sampler
     act_pred_1 = flow_map.get_velocity(t, act_pred_0, obs_emb)
+
+    act = act_pred_1
+    return act
+
+
+def mip_origin_sampler(
+    config: OptimizationConfig,
+    flow_map: FlowMap,
+    encoder: BaseEncoder,
+    act_0: torch.Tensor,
+    obs: torch.Tensor,
+):
+    """Original minimum iterative policy"""
+    bs = act_0.shape[0]
+    s = torch.zeros((bs,), device=act_0.device)
+    t = torch.full((bs,), config.t_two_step, device=act_0.device)
+    obs_emb = encoder(obs, None)
+
+    act_0 = torch.zeros_like(act_0, device=act_0.device)
+    act_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
+    # this is the original form in the paper
+    act_pred_1 = flow_map.get_velocity(t, act_pred_0 * config.t_two_step, obs_emb)
 
     act = act_pred_1
     return act

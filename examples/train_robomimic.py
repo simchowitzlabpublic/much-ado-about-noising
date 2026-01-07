@@ -170,7 +170,8 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
             for key in info:
                 try:
                     metrics[key] = np.nanmean([info[key] for info in info_list])
-                except Exception:
+                except Exception as e:
+                    loguru.logger.error(f"Error calculating {key}: {e}")
                     metrics[key] = np.nan
 
             # Add performance metrics

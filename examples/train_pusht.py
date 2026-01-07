@@ -114,6 +114,9 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
             (batch_size,), delta_t_scalar, device=config.optimization.device
         )
         info = agent.update(act, obs, delta_t)
+        for k, v in info.items():
+            if isinstance(v, torch.Tensor):
+                info[k] = v.item()
         lr_scheduler.step()
         info_list.append(info)
 
@@ -128,7 +131,8 @@ def train(config: Config, envs, dataset, agent, logger, resume_state=None):
             for key in info:
                 try:
                     metrics[key] = np.nanmean([info[key] for info in info_list])
-                except (KeyError, TypeError, ValueError):
+                except (KeyError, TypeError, ValueError) as e:
+                    loguru.logger.error(f"Error calculating {key}: {e}")
                     metrics[key] = np.nan
             logger.log(metrics, category="train")
             info_list = []

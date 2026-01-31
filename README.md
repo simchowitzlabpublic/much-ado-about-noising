@@ -29,10 +29,8 @@ Please refer to the [documentation](https://simchowitzlabpublic.github.io/much-a
 
 ```bash
 uv sync
-# install robomimic dependencies
-uv sync --extras robomimic
-# install kitchen dependencies
-uv sync --extras kitchen
+# install for development
+uv sync --extra dev
 ```
 
 ## Quick Start

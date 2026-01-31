@@ -38,6 +38,10 @@ uv sync --extra dev
 ### Training
 
 ```bash
+# on headless machine
+export MUJOCO_GL=egl
+# on ubuntu machine without mujoco installed
+sudo apt-get install -y libglew-dev libosmesa6-dev patchelf
 # Train Robomimic (state observations)
 uv run examples/train_robomimic.py \
     task=lift_ph_state \

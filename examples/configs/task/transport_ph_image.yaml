@@ -19,12 +19,12 @@ render_obs_key: "shouldercamera0_image"
 
 # Required keys
 horizon: 10
-act_dim: 14  # Two robots: 7 DOF each
+act_dim: 20  # Dual-arm abs_action uses 6D rotation (2 * (3 pos + 6 rot + 1 grip))
 
 shape_meta:
   action:
     shape:
-      - 14
+      - 20
   obs:
     shouldercamera0_image:
       shape:

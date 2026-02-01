@@ -6,6 +6,7 @@ defaults:
 # Shared encoder parameters (used across all networks)
 num_encoder_layers: 2  # Number of layers for MLP encoder
 encoder_dropout: 0.0   # Dropout for encoder
+encoder_type: "mlp"    # "mlp", "per_step_mlp", "identity"
 emb_dim: -1
 
 # Image encoder configs (used when obs_type is "image")

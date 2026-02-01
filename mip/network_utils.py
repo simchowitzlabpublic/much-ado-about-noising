@@ -9,7 +9,12 @@ import torch
 import torch.nn as nn
 
 from mip.config import NetworkConfig, TaskConfig
-from mip.encoders import IdentityEncoder, MLPEncoder, MultiImageObsEncoder
+from mip.encoders import (
+    IdentityEncoder,
+    MLPEncoder,
+    MultiImageObsEncoder,
+    PerStepMLPEncoder,
+)
 
 
 def get_network(network_config: NetworkConfig, task_config: TaskConfig):
@@ -120,8 +125,8 @@ def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):
         # Force image encoder for image observations
         encoder_type = "image"
     elif task_config.obs_type in ["state", "keypoint"]:
-        # For state/keypoint, use mlp encoder
-        encoder_type = "mlp"
+        # For state/keypoint, default to configured encoder
+        encoder_type = getattr(network_config, "encoder_type", "mlp")
     else:
         raise ValueError(f"Invalid observation type: {task_config.obs_type}")
     loguru.logger.info(f"Using encoder type: {encoder_type}")
@@ -132,6 +137,13 @@ def get_encoder(network_config: NetworkConfig, task_config: TaskConfig):
         return MLPEncoder(
             obs_dim=task_config.obs_dim,
             To=task_config.obs_steps,
+            emb_dim=network_config.emb_dim,
+            hidden_dims=[network_config.emb_dim] * network_config.num_encoder_layers,
+            dropout=network_config.encoder_dropout,
+        )
+    elif encoder_type == "per_step_mlp":
+        return PerStepMLPEncoder(
+            obs_dim=task_config.obs_dim,
             emb_dim=network_config.emb_dim,
             hidden_dims=[network_config.emb_dim] * network_config.num_encoder_layers,
             dropout=network_config.encoder_dropout,

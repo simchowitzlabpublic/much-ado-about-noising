@@ -19,5 +19,5 @@ obs_keys: ["object", "robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos",
 
 # Required keys
 horizon: 10
-act_dim: 20  # Dual-arm abs_action uses 6D rotation (2 * (3 pos + 6 rot + 1 grip))
-obs_dim: 41  # 14 (object) + 3 (robot0_eef_pos) + 4 (robot0_eef_quat) + 2 (robot0_gripper_qpos) + 3 (robot1_eef_pos) + 4 (robot1_eef_quat) + 2 (robot1_gripper_qpos) = 32, but normalized differently
+act_dim: 20  # Two robots: 7 DOF each
+obs_dim: 59  # 14 (object) + 3 (robot0_eef_pos) + 4 (robot0_eef_quat) + 2 (robot0_gripper_qpos) + 3 (robot1_eef_pos) + 4 (robot1_eef_quat) + 2 (robot1_gripper_qpos) = 59, but normalized differently

@@ -53,6 +53,7 @@ class NetworkConfig:
     emb_dim: int = 512
     dropout: float = 0.1
     encoder_dropout: float = 0.0
+    encoder_type: str = "mlp"  # "mlp", "per_step_mlp", "identity"
     expansion_factor: int = 4
     timestep_emb_dim: int = 128
     timestep_emb_type: str = "positional"  # Type of timestep embedding

@@ -510,6 +510,63 @@ class MLPEncoder(BaseEncoder):
         return emb_features.reshape(obs.shape[0], self.To, self.emb_dim)
 
 
+class PerStepMLPEncoder(BaseEncoder):
+    """Apply an MLP to each timestep independently (no time mixing)."""
+
+    def __init__(
+        self,
+        obs_dim: int,
+        emb_dim: int,
+        hidden_dims: list[int],
+        act=nn.LeakyReLU(),
+        dropout: float = 0.25,
+    ):
+        super().__init__()
+        self.dropout = dropout
+        self.emb_dim = emb_dim
+        hidden_dims = (
+            [
+                hidden_dims,
+            ]
+            if isinstance(hidden_dims, int)
+            else hidden_dims
+        )
+
+        layers = []
+        in_dim = obs_dim
+        if len(hidden_dims) > 0:
+            for dim in hidden_dims:
+                layers.append(nn.Linear(in_dim, dim))
+                layers.append(act)
+                in_dim = dim
+        layers.append(nn.Linear(in_dim, emb_dim))
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, obs: torch.Tensor | dict, mask: torch.Tensor = None):
+        if isinstance(obs, dict):
+            keys = sorted(obs.keys())
+            obs_list = [obs[k] for k in keys]
+            obs = torch.cat(obs_list, dim=-1)
+
+        # obs: (B, To, obs_dim) -> (B*To, obs_dim)
+        b, t, d = obs.shape
+        obs_flat = obs.reshape(b * t, d)
+        emb_flat = self.mlp(obs_flat)
+        emb = emb_flat.reshape(b, t, self.emb_dim)
+
+        mask = at_least_ndim(
+            get_mask(
+                mask,
+                (obs.shape[0],),
+                self.dropout,
+                self.training,
+                obs.device,
+            ),
+            emb.dim(),
+        )
+        return emb * mask
+
+
 def replace_submodules(
     root_module: nn.Module,
     predicate: Callable[[nn.Module], bool],

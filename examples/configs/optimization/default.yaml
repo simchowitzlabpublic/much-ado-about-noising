@@ -4,8 +4,8 @@ defaults:
 
 seed: 0
 loss_type: "flow"
-loss_scale: 1.0
-norm_type: "l1" # NOTE: this is wrong theoretically, but it works better for robotics tasks
+loss_scale: 0.1
+norm_type: "l2" # "l1", "l2"
 lr: 1e-4
 weight_decay: 1e-5
 num_steps: 1

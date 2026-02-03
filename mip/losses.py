@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 import torch
+import torch.nn.functional as F
 
 from mip.config import OptimizationConfig
 from mip.encoders import BaseEncoder
@@ -12,9 +13,15 @@ from mip.interpolant import Interpolant
 
 def get_norm(x: torch.Tensor, norm_type: str) -> torch.Tensor:
     if norm_type == "l2":
-        return torch.norm(x, p=2, dim=-1)
+        # squared L2 (no sqrt)
+        return torch.sum(x * x, dim=-1)
     elif norm_type == "l1":
-        return torch.norm(x, p=1, dim=-1)
+        return torch.sum(torch.abs(x), dim=-1)
+    elif norm_type == "smooth_l1":
+        # per-element smooth L1, then sum over last dim
+        return torch.sum(
+            F.smooth_l1_loss(x, torch.zeros_like(x), reduction="none"), dim=-1
+        )
     else:
         raise NotImplementedError(f"Norm type {norm_type} not implemented.")
 
@@ -79,7 +86,7 @@ def flow_loss(
     b_t = flow_map.get_velocity(t, act_t, obs_emb)
 
     # compute loss
-    loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    loss = get_norm(b_t - act_t_dot, config.norm_type)
     loss = config.loss_scale * torch.mean(loss)
     return loss, {}
 
@@ -105,7 +112,7 @@ def regression_loss(
     act_pred = flow_map.get_velocity(t, act_0, obs_emb)
 
     # compute loss
-    loss = get_norm(act_pred - act, config.norm_type) ** 2
+    loss = get_norm(act_pred - act, config.norm_type)
     loss = config.loss_scale * torch.mean(loss)
     return loss, {}
 
@@ -135,10 +142,8 @@ def tsd_loss(
     act_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
 
     # compute loss
-    loss0 = (get_norm(act_pred_0 - act_t, config.norm_type) / (config.t_two_step)) ** 2
-    loss1 = (
-        get_norm(act_pred_1 - act, config.norm_type) / (1 - config.t_two_step)
-    ) ** 2
+    loss0 = get_norm((act_pred_0 - act_t) / config.t_two_step, config.norm_type)
+    loss1 = get_norm((act_pred_1 - act) / (1 - config.t_two_step), config.norm_type)
     loss = loss0 + loss1
     loss = config.loss_scale * torch.mean(loss)
 
@@ -179,10 +184,8 @@ def mip_loss(
 
     # compute loss
     # difference compared to tsd: no stochasticity in prediction
-    loss0 = (get_norm(act_pred_0 - act, config.norm_type) / (config.t_two_step)) ** 2
-    loss1 = (
-        get_norm(act_pred_1 - act, config.norm_type) / (1 - config.t_two_step)
-    ) ** 2
+    loss0 = get_norm((act_pred_0 - act) / config.t_two_step, config.norm_type)
+    loss1 = get_norm((act_pred_1 - act) / (1 - config.t_two_step), config.norm_type)
     loss = loss0 + loss1
     loss = config.loss_scale * torch.mean(loss)
 
@@ -220,12 +223,10 @@ def mip_origin_loss(
 
     # compute loss
     # difference compared to tsd: no stochasticity in prediction
-    loss0 = (
-        get_norm(act_pred_0 - act_target_0, config.norm_type) / (config.t_two_step)
-    ) ** 2
-    loss1 = (
-        get_norm(act_pred_1 - act_target_1, config.norm_type) / (1 - config.t_two_step)
-    ) ** 2
+    loss0 = get_norm((act_pred_0 - act_target_0) / config.t_two_step, config.norm_type)
+    loss1 = get_norm(
+        (act_pred_1 - act_target_1) / (1 - config.t_two_step), config.norm_type
+    )
     loss = loss0 + loss1
     loss = config.loss_scale * torch.mean(loss)
 
@@ -342,7 +343,7 @@ def psd_loss(
     b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
 
     # compute flow loss
-    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type)
     flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
 
     # ========== PSD term ==========
@@ -375,7 +376,7 @@ def psd_loss(
     teacher = (1 - h_expanded) * f_xsu + h_expanded * f_xut
 
     # compute PSD loss using get_norm (ignore weight_st as requested)
-    psd_term = get_norm(student - teacher, config.norm_type) ** 2
+    psd_term = get_norm(student - teacher, config.norm_type)
     psd_term = config.loss_scale * torch.mean(psd_term)
 
     # combine losses
@@ -419,7 +420,7 @@ def lsd_loss(
     b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
 
     # compute flow loss
-    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type)
     flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
 
     # ========== LSD term ==========
@@ -441,7 +442,7 @@ def lsd_loss(
 
     # lsd loss (ignore weight_st)
     error = b_eval - dt_xst
-    lsd_term = get_norm(error, config.norm_type) ** 2
+    lsd_term = get_norm(error, config.norm_type)
     lsd_term = config.loss_scale * torch.mean(lsd_term)
 
     # combine losses
@@ -478,7 +479,7 @@ def esd_loss(
     b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
 
     # compute flow loss
-    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type)
     flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
 
     # ========== ESD term ==========
@@ -504,7 +505,7 @@ def esd_loss(
 
     # esd loss
     error = ds_xst + grad_xst_b
-    esd_term = get_norm(error, config.norm_type) ** 2
+    esd_term = get_norm(error, config.norm_type)
     esd_term = config.loss_scale * torch.mean(esd_term)
 
     # combine losses
@@ -541,7 +542,7 @@ def mf_loss(
     b_t = flow_map.get_velocity(t_flow, act_t, obs_emb)
 
     # compute flow loss
-    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type) ** 2
+    flow_matching_loss = get_norm(b_t - act_t_dot, config.norm_type)
     flow_matching_loss = config.loss_scale * torch.mean(flow_matching_loss)
 
     # ========== Mean flow term ==========
@@ -568,7 +569,7 @@ def mf_loss(
 
     # mf loss
     error = ds_xst + grad_xst_b
-    mf_term = get_norm(error, config.norm_type) ** 2
+    mf_term = get_norm(error, config.norm_type)
     mf_term = config.loss_scale * torch.mean(mf_term)
 
     # combine losses

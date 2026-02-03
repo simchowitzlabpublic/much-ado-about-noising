@@ -311,10 +311,19 @@ def evaluate(config: Config, envs, dataset, agent, logger, num_steps=1):
             act_normed = (
                 act_normed.detach().to("cpu").numpy()
             )  # (num_envs, horizon, action_dim)
-            act = dataset.normalizer["action"].unnormalize(act_normed)
+            start = config.task.obs_steps - 1
+            abs_start = t - start
+            abs_idx = np.arange(
+                abs_start, abs_start + config.task.horizon, dtype=np.int64
+            )
+            if config.task.action_norm_type == "per_step":
+                act = dataset.normalizer["action"].unnormalize(
+                    act_normed, abs_idx=abs_idx
+                )
+            else:
+                act = dataset.normalizer["action"].unnormalize(act_normed)
 
             # get action by slicing from start to end
-            start = config.task.obs_steps - 1
             end = start + config.task.act_steps
             act = act[:, start:end, :]
 

@@ -13,15 +13,18 @@ import numpy as np
 import torch
 import zarr
 from huggingface_hub import hf_hub_download
+from jaxtyping import Int
 from loguru import logger
 from tqdm import tqdm
 
 from mip.dataset_utils import (
+    AbsolutePercentileNormalizer,
     ImageNormalizer,
     MinMaxNormalizer,
     ReplayBuffer,
     RotationTransformer,
     SequenceSampler,
+    compute_absolute_action_percentiles,
     dict_apply,
 )
 from mip.datasets.base import BaseDataset
@@ -62,6 +65,7 @@ def make_dataset(task_config, mode="train"):
                 pad_before=task_config.obs_steps - 1,
                 pad_after=task_config.act_steps - 1,
                 abs_action=task_config.abs_action,
+                action_norm_type=getattr(task_config, "action_norm_type", "per_step"),
                 mode=mode,
                 val_dataset_percentage=task_config.val_dataset_percentage,
             )
@@ -96,6 +100,7 @@ class RobomimicDataset(BaseDataset):
         val_dataset_percentage=0.0,
         mode="train",
         use_key_state_for_val: bool = False,
+        action_norm_type: str = "per_step",
     ):
         super().__init__()
         self.rotation_transformer = RotationTransformer(
@@ -204,6 +209,7 @@ class RobomimicDataset(BaseDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.abs_action = abs_action
+        self.action_norm_type = action_norm_type
         self.normalizer = self.get_normalizer()
 
     def undo_transform_action(self, action):
@@ -226,28 +232,39 @@ class RobomimicDataset(BaseDataset):
         return uaction
 
     def get_normalizer(self):
-        if self.abs_action:
-            state_normalizer = MinMaxNormalizer(
-                self.replay_buffer["obs"][:]
-            )  # (N, obs_dim)
+        state_normalizer = MinMaxNormalizer(
+            self.replay_buffer["obs"][:]
+        )  # (N, obs_dim)
+        if self.action_norm_type == "per_step":
+            p02_abs, p98_abs, _ = compute_absolute_action_percentiles(
+                action_array=self.replay_buffer["action"][:],
+                episode_ends=self.replay_buffer.episode_ends[:],
+            )
+            action_normalizer = AbsolutePercentileNormalizer(
+                p02_abs=p02_abs,
+                p98_abs=p98_abs,
+            )
+        elif self.action_norm_type == "minmax":
             action_normalizer = MinMaxNormalizer(
                 self.replay_buffer["action"][:]
             )  # (N, action_dim)
         else:
-            state_normalizer = MinMaxNormalizer(
-                self.replay_buffer["obs"][:]
-            )  # (N, obs_dim)
-            action_normalizer = MinMaxNormalizer(
-                self.replay_buffer["action"][:]
-            )  # (N, action_dim)
+            raise ValueError(f"Invalid action_norm_type: {self.action_norm_type}")
         return {"obs": {"state": state_normalizer}, "action": action_normalizer}
 
-    def sample_to_data(self, sample):
+    def sample_to_data(self, sample, abs_idx: Int[np.ndarray, "horizon"] | None = None):
         state = sample["obs"].astype(np.float32)
         state = self.normalizer["obs"]["state"].normalize(state)
 
         action = sample["action"].astype(np.float32)
-        action = self.normalizer["action"].normalize(action)
+        if self.action_norm_type == "per_step":
+            if abs_idx is None:
+                raise ValueError(
+                    "abs_idx is required for per-step action normalization"
+                )
+            action = self.normalizer["action"].normalize(action, abs_idx=abs_idx)
+        else:
+            action = self.normalizer["action"].normalize(action)
         data = {
             "obs": {"state": state},
             "action": action,
@@ -262,9 +279,27 @@ class RobomimicDataset(BaseDataset):
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
-        data = self.sample_to_data(sample)
+        abs_idx = None
+        if self.action_norm_type == "per_step":
+            abs_idx = self._get_absolute_action_indices(idx)
+        data = self.sample_to_data(sample, abs_idx=abs_idx)
         torch_data = dict_apply(data, torch.tensor)
         return torch_data
+
+    def _get_absolute_action_indices(self, idx: int) -> Int[np.ndarray, "horizon"]:
+        buffer_start, buffer_end, sample_start, sample_end = self.sampler.indices[idx]
+        episode_ends = self.replay_buffer.episode_ends[:]
+        episode_idx = int(np.searchsorted(episode_ends, buffer_start, side="right"))
+        episode_start = 0 if episode_idx == 0 else int(episode_ends[episode_idx - 1])
+        abs_indices = np.arange(buffer_start, buffer_end) - episode_start
+
+        abs_idx_seq = np.empty((self.horizon,), dtype=np.int64)
+        abs_idx_seq[sample_start:sample_end] = abs_indices
+        if sample_start > 0:
+            abs_idx_seq[:sample_start] = abs_indices[0]
+        if sample_end < self.horizon:
+            abs_idx_seq[sample_end:] = abs_indices[-1]
+        return abs_idx_seq
 
 
 def _data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transformer):

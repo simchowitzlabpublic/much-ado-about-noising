@@ -24,3 +24,4 @@ crop_shape:
 random_crop: true
 use_group_norm: true
 use_seq: true
+action_norm_type: minmax

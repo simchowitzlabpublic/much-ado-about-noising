@@ -86,6 +86,7 @@ class TaskConfig:
     obs_type: str = "state"
     env_type: str = "ph"
     abs_action: bool = True
+    action_norm_type: str = "minmax"  # "per_step" or "minmax"
     # Dataset configuration - either HuggingFace or local path
     dataset_repo: str | None = (
         None  # HuggingFace repository ID (e.g., "ChaoyiPan/mip-dataset")

@@ -16,6 +16,7 @@ import numcodecs
 import numpy as np
 import torch
 import zarr
+from jaxtyping import Float, Int
 from loguru import logger
 from scipy import interpolate
 
@@ -1016,6 +1017,125 @@ class GaussianNormalizer:
 
     def unnormalize(self, x):
         return x * self.stds[None,] + self.means[None,]
+
+
+class AbsolutePercentileNormalizer:
+    """Normalizes sequence data with per-absolute-timestep percentiles.
+
+    Scales the 2-98 percentile range to [-1, 1] with clamping to [-1.5, 1.5].
+    Expects p02/p98 of shape (T_abs, D). Use abs_idx to index.
+    """
+
+    def __init__(
+        self,
+        p02_abs: Float[np.ndarray, "traj_len act_dim"],
+        p98_abs: Float[np.ndarray, "traj_len act_dim"],
+        eps: float = 1e-6,
+        clamp: float = 1.5,
+    ):
+        self.p02_abs = p02_abs.astype(np.float32)
+        self.p98_abs = p98_abs.astype(np.float32)
+        self.eps = eps
+        self.clamp = clamp
+
+    def _gather(
+        self, abs_idx: Int[np.ndarray, "batch horizon"]
+    ) -> tuple[
+        Float[np.ndarray, "batch horizon act_dim"],
+        Float[np.ndarray, "batch horizon act_dim"],
+    ]:
+        max_idx = self.p02_abs.shape[0] - 1
+        abs_idx = np.clip(abs_idx, 0, max_idx)
+        p02 = self.p02_abs[abs_idx]
+        p98 = self.p98_abs[abs_idx]
+        return p02, p98
+
+    def normalize(
+        self,
+        x: Float[np.ndarray, "batch horizon act_dim"],
+        abs_idx: Int[np.ndarray, "batch horizon"],
+    ) -> Float[np.ndarray, "batch horizon act_dim"]:
+        x = x.astype(np.float32)
+        abs_idx = np.asarray(abs_idx, dtype=np.int64)
+        squeeze = False
+        if x.ndim == 2:
+            x = x[None, ...]
+            squeeze = True
+        if abs_idx.ndim == 1:
+            abs_idx = abs_idx[None, :]
+        p02, p98 = self._gather(abs_idx)
+        denom = (p98 - p02) + self.eps
+        y = 2.0 * (x - p02) / denom - 1.0
+        y = np.clip(y, -self.clamp, self.clamp)
+        return y[0] if squeeze else y
+
+    def unnormalize(
+        self,
+        x: Float[np.ndarray, "batch horizon act_dim"],
+        abs_idx: Int[np.ndarray, "batch horizon"],
+    ) -> Float[np.ndarray, "batch horizon act_dim"]:
+        x = x.astype(np.float32)
+        abs_idx = np.asarray(abs_idx, dtype=np.int64)
+        squeeze = False
+        if x.ndim == 2:
+            x = x[None, ...]
+            squeeze = True
+        if abs_idx.ndim == 1:
+            abs_idx = abs_idx[None, :]
+        x = np.clip(x, -self.clamp, self.clamp)
+        p02, p98 = self._gather(abs_idx)
+        denom = (p98 - p02) + self.eps
+        y = (x + 1.0) / 2.0 * denom + p02
+        return y[0] if squeeze else y
+
+
+def compute_absolute_action_percentiles(
+    action_array: Float[np.ndarray, "n_steps act_dim"],
+    episode_ends: Int[np.ndarray, "n_episodes"],
+    low: float = 0.02,
+    high: float = 0.98,
+) -> tuple[
+    Float[np.ndarray, "traj_len act_dim"],
+    Float[np.ndarray, "traj_len act_dim"],
+    int,
+]:
+    """Compute per-absolute-timestep percentiles.
+
+    Stats are computed up to the shortest trajectory length. Longer trajectories
+    will clamp to the last timestep's stats.
+    """
+    if action_array.ndim != 2:
+        raise ValueError(
+            f"Expected action_array shape (N, D), got {action_array.shape}"
+        )
+    episode_ends = np.asarray(episode_ends, dtype=np.int64)
+    if episode_ends.size == 0:
+        act_dim = action_array.shape[-1]
+        return (
+            np.zeros((0, act_dim), dtype=np.float32),
+            np.ones((0, act_dim), dtype=np.float32),
+            0,
+        )
+
+    episode_starts = np.concatenate(([0], episode_ends[:-1]))
+    lengths = episode_ends - episode_starts
+    min_len = int(lengths.min()) if lengths.size > 0 else 0
+    act_dim = action_array.shape[-1]
+    if min_len <= 0:
+        return (
+            np.zeros((0, act_dim), dtype=np.float32),
+            np.ones((0, act_dim), dtype=np.float32),
+            0,
+        )
+
+    n_episodes = len(episode_ends)
+    data = np.zeros((n_episodes, min_len, act_dim), dtype=np.float32)
+    for i, start in enumerate(episode_starts):
+        data[i] = action_array[start : start + min_len]
+
+    p02 = np.quantile(data, low, axis=0).astype(np.float32)
+    p98 = np.quantile(data, high, axis=0).astype(np.float32)
+    return p02, p98, min_len
 
 
 class ImageNormalizer:

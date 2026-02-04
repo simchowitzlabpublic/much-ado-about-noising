@@ -27,3 +27,5 @@ use_compile: false
 compile_mode: null # Compile mode: null, "default", "reduce-overhead", "max-autotune"
 use_cudagraphs: false # Whether to use CUDA graphs (requires static shapes)
 auto_resume: true
+action_std_k: 16
+action_std_exclude_self: True

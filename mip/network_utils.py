@@ -38,8 +38,13 @@ def get_network(network_config: NetworkConfig, task_config: TaskConfig):
     }[network_config.network_type]
 
     # Common parameters for all networks
+    act_dim = (
+        task_config.pred_act_dim
+        if task_config.pred_act_dim is not None
+        else task_config.act_dim
+    )
     common_params = {
-        "act_dim": task_config.act_dim,
+        "act_dim": act_dim,
         "Ta": task_config.horizon,
         "obs_dim": network_config.emb_dim,  # all encoder will encode obs to emb_dim
         "To": task_config.obs_steps,

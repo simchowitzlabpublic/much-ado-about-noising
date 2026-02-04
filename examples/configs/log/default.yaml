@@ -12,3 +12,5 @@ log_freq: 1000
 save_freq: 20000
 eval_episodes: 50
 save_video: False
+action_std_k: 16
+action_std_exclude_self: True

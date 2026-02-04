@@ -44,6 +44,8 @@ class OptimizationConfig:
     )
     use_cudagraphs: bool = False  # Whether to use CUDA graphs (requires static shapes)
     auto_resume: bool = True  # Whether to automatically resume from checkpoint
+    action_std_k: int = 8
+    action_std_exclude_self: bool = True
 
 
 @dataclass
@@ -108,6 +110,7 @@ class TaskConfig:
     )
     obs_dim: int = -1
     act_dim: int = 10
+    pred_act_dim: int | None = None
     obs_steps: int = 2
     act_steps: int = 8
     horizon: int = 10  # Prediction horizon (typically obs_steps + act_steps)

@@ -5,6 +5,7 @@ Date: 2025-10-03
 """
 
 import concurrent.futures
+import hashlib
 import os
 from collections import defaultdict
 
@@ -33,7 +34,76 @@ from mip.datasets.imagecodecs import register_codecs
 register_codecs()
 
 
-def make_dataset(task_config, mode="train"):
+def _normalize_action_array(
+    action_raw, episode_ends, action_normalizer, action_norm_type
+):
+    action_raw = action_raw.astype(np.float32)
+    if action_norm_type == "per_step":
+        action_norm = np.empty_like(action_raw, dtype=np.float32)
+        episode_ends = np.asarray(episode_ends, dtype=np.int64)
+        start = 0
+        for end in episode_ends:
+            end = int(end)
+            if end <= start:
+                continue
+            abs_idx = np.arange(end - start, dtype=np.int64)
+            action_norm[start:end] = action_normalizer.normalize(
+                action_raw[start:end], abs_idx=abs_idx
+            )
+            start = end
+        return action_norm
+    return action_normalizer.normalize(action_raw)
+
+
+def _compute_knn_action_ranges(
+    obs_norm: np.ndarray,
+    action_norm: np.ndarray,
+    k: int,
+    chunk_size: int,
+    exclude_self: bool,
+) -> np.ndarray:
+    n_steps = obs_norm.shape[0]
+    if n_steps == 0:
+        return np.zeros_like(action_norm, dtype=np.float32)
+
+    k = min(k, n_steps - 1) if exclude_self else min(k, n_steps)
+    if k <= 0:
+        return np.zeros_like(action_norm, dtype=np.float32)
+
+    obs_norm = obs_norm.astype(np.float32)
+    action_norm = action_norm.astype(np.float32)
+    obs_sq = np.sum(obs_norm * obs_norm, axis=1)
+    action_ranges = np.zeros_like(action_norm, dtype=np.float32)
+
+    total_chunks = (n_steps + chunk_size - 1) // chunk_size
+    for start in tqdm(
+        range(0, n_steps, chunk_size),
+        total=total_chunks,
+        desc="Computing KNN action std",
+    ):
+        end = min(start + chunk_size, n_steps)
+        query = obs_norm[start:end]
+        query_sq = np.sum(query * query, axis=1, keepdims=True)
+        dist = query_sq + obs_sq[None, :] - 2.0 * (query @ obs_norm.T)
+        dist = np.maximum(dist, 0.0)
+        if exclude_self:
+            row_idx = np.arange(end - start)
+            dist[row_idx, start + row_idx] = np.inf
+        topk_idx = np.argpartition(dist, kth=k - 1, axis=1)[:, :k]
+        neighbor_actions = action_norm[topk_idx]
+        max_actions = np.max(neighbor_actions, axis=1)
+        min_actions = np.min(neighbor_actions, axis=1)
+        action_ranges[start:end] = max_actions - min_actions
+    return action_ranges
+
+
+def make_dataset(
+    task_config,
+    mode="train",
+    loss_type: str | None = None,
+    action_std_k: int = 8,
+    action_std_exclude_self: bool = True,
+):
     # Check if we should download from HuggingFace
     if hasattr(task_config, "dataset_repo") and hasattr(
         task_config, "dataset_filename"
@@ -66,6 +136,9 @@ def make_dataset(task_config, mode="train"):
                 pad_after=task_config.act_steps - 1,
                 abs_action=task_config.abs_action,
                 action_norm_type=getattr(task_config, "action_norm_type", "per_step"),
+                loss_type=loss_type,
+                action_std_k=action_std_k,
+                action_std_exclude_self=action_std_exclude_self,
                 mode=mode,
                 val_dataset_percentage=task_config.val_dataset_percentage,
             )
@@ -101,13 +174,23 @@ class RobomimicDataset(BaseDataset):
         mode="train",
         use_key_state_for_val: bool = False,
         action_norm_type: str = "per_step",
+        loss_type: str | None = None,
+        action_std_k: int = 8,
+        action_std_exclude_self: bool = True,
     ):
         super().__init__()
+        self.dataset_dir = dataset_dir
+        self.obs_keys = list(obs_keys)
         self.rotation_transformer = RotationTransformer(
             from_rep="axis_angle", to_rep=rotation_rep
         )
         self.val_dataset_percentage = val_dataset_percentage
         self.mode = mode
+        self.loss_type = loss_type
+        self.use_action_std = loss_type == "pred_std_loss"
+        self.action_std_k = action_std_k
+        self.action_std_chunk_size = horizon
+        self.action_std_exclude_self = action_std_exclude_self
 
         self.replay_buffer = ReplayBuffer.create_empty_numpy()
         with h5py.File(dataset_dir) as file:
@@ -198,19 +281,20 @@ class RobomimicDataset(BaseDataset):
                 )
                 self.replay_buffer.add_episode(episode)
 
-        self.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer,
-            sequence_length=horizon,
-            pad_before=pad_before,
-            pad_after=pad_after,
-        )
-
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.abs_action = abs_action
         self.action_norm_type = action_norm_type
         self.normalizer = self.get_normalizer()
+        if self.use_action_std:
+            self._add_action_std()
+        self.sampler = SequenceSampler(
+            replay_buffer=self.replay_buffer,
+            sequence_length=horizon,
+            pad_before=pad_before,
+            pad_after=pad_after,
+        )
 
     def undo_transform_action(self, action):
         raw_shape = action.shape
@@ -265,6 +349,9 @@ class RobomimicDataset(BaseDataset):
             action = self.normalizer["action"].normalize(action, abs_idx=abs_idx)
         else:
             action = self.normalizer["action"].normalize(action)
+        if self.use_action_std:
+            action_std = sample["action_std"].astype(np.float32)
+            action = np.concatenate([action, action_std], axis=-1)
         data = {
             "obs": {"state": state},
             "action": action,
@@ -300,6 +387,61 @@ class RobomimicDataset(BaseDataset):
         if sample_end < self.horizon:
             abs_idx_seq[sample_end:] = abs_indices[-1]
         return abs_idx_seq
+
+    def _add_action_std(self):
+        if "action_std" in self.replay_buffer:
+            return
+
+        obs_raw = self.replay_buffer["obs"][:].astype(np.float32)
+        obs_norm = self.normalizer["obs"]["state"].normalize(obs_raw)
+        action_raw = self.replay_buffer["action"][:].astype(np.float32)
+        action_norm = _normalize_action_array(
+            action_raw=action_raw,
+            episode_ends=self.replay_buffer.episode_ends[:],
+            action_normalizer=self.normalizer["action"],
+            action_norm_type=self.action_norm_type,
+        )
+        cache_path = self._get_action_std_cache_path()
+        action_std = None
+        if os.path.exists(cache_path):
+            try:
+                cached = np.load(cache_path)
+                if cached.shape == action_norm.shape:
+                    action_std = cached.astype(np.float32)
+                    logger.info(f"Loaded cached action std from {cache_path}")
+            except Exception as exc:
+                logger.warning(f"Failed to load action std cache: {exc}")
+
+        if action_std is None:
+            logger.info(
+                "Computing action std via KNN "
+                f"(k={self.action_std_k}, chunk_size={self.action_std_chunk_size})"
+            )
+            action_std = _compute_knn_action_ranges(
+                obs_norm=obs_norm,
+                action_norm=action_norm,
+                k=self.action_std_k,
+                chunk_size=self.action_std_chunk_size,
+                exclude_self=self.action_std_exclude_self,
+            )
+            try:
+                np.save(cache_path, action_std)
+                logger.info(f"Saved action std cache to {cache_path}")
+            except Exception as exc:
+                logger.warning(f"Failed to save action std cache: {exc}")
+
+        self.replay_buffer.data["action_std"] = action_std
+
+    def _get_action_std_cache_path(self) -> str:
+        cache_dir = os.path.dirname(os.path.abspath(self.dataset_dir))
+        obs_sig = ",".join(self.obs_keys)
+        obs_hash = hashlib.md5(obs_sig.encode("utf-8")).hexdigest()[:8]
+        base = os.path.basename(self.dataset_dir)
+        filename = (
+            f".{base}.knn_std.k{self.action_std_k}"
+            f".h{self.horizon}.norm_{self.action_norm_type}.obs_{obs_hash}.npy"
+        )
+        return os.path.join(cache_dir, filename)
 
 
 def _data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transformer):

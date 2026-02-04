@@ -14,6 +14,7 @@ num_envs: 20
 save_video: false
 val_dataset_percentage: 0.0
 obs_dim: 128  # Placeholder, will be overridden for image observations
+pred_act_dim: null
 
 # Common image encoder settings (for image-based tasks)
 rgb_model: resnet18

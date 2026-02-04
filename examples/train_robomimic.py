@@ -329,8 +329,13 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                             dtype=torch.float32,
                         )  # (num_envs, obs_steps, obs_dim)
 
+                pred_act_dim = (
+                    config.task.pred_act_dim
+                    if config.task.pred_act_dim is not None
+                    else config.task.act_dim
+                )
                 act_0 = torch.randn(
-                    (config.task.num_envs, config.task.horizon, config.task.act_dim),
+                    (config.task.num_envs, config.task.horizon, pred_act_dim),
                     device=config.optimization.device,
                 )
 
@@ -348,6 +353,14 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                 act_normed = (
                     act_normed.detach().to("cpu").numpy()
                 )  # (num_envs, horizon, action_dim)
+                if config.optimization.loss_type == "pred_std_loss":
+                    act_dim = config.task.act_dim
+                    if act_normed.shape[-1] != act_dim * 2:
+                        raise ValueError(
+                            "pred_std_loss expects action dim to be doubled "
+                            f"(got {act_normed.shape[-1]} vs {act_dim * 2})"
+                        )
+                    act_normed = act_normed[..., :act_dim]
                 start = config.task.obs_steps - 1
                 abs_start = t - start
                 abs_idx = np.arange(
@@ -479,8 +492,18 @@ def main(config):
         config.task.obs_dim = config.network.emb_dim
     loguru.logger.info("Finished setting up env")
 
+    if config.optimization.loss_type == "pred_std_loss":
+        config.task.pred_act_dim = config.task.act_dim * 2
+    else:
+        config.task.pred_act_dim = config.task.act_dim
+
     # dataset setup
-    dataset = make_dataset(config.task)
+    dataset = make_dataset(
+        config.task,
+        loss_type=config.optimization.loss_type,
+        action_std_k=config.optimization.action_std_k,
+        action_std_exclude_self=config.optimization.action_std_exclude_self,
+    )
     loguru.logger.info("Finished setting up dataset")
 
     agent = TrainingAgent(config)

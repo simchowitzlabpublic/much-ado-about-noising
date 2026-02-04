@@ -77,7 +77,7 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
             env = EnvUtils.create_env_from_metadata(
                 env_meta=env_meta,
                 render=False,
-                render_offscreen=enable_render or task_config.obs_type == "image",
+                render_offscreen=enable_render and (task_config.obs_type == "image"),
                 use_image_obs=enable_render
                 if task_config.obs_type == "image"
                 else False,

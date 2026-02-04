@@ -211,49 +211,45 @@ def pred_std_loss(
     s = torch.zeros_like(delta_t, device=delta_t.device)
     t = torch.zeros_like(delta_t, device=delta_t.device) + config.t_two_step
 
-    act_0 = torch.zeros_like(act, device=act.device)
+    act_0 = torch.zeros_like(act_mean, device=act.device)
     noise = torch.empty_like(act_mean).normal_(0, 1)
-    act_t_mean = act_mean + (1 - config.t_two_step) * noise
-    act_t = torch.cat([act_t_mean, act_std], dim=-1)
+    act_t = act_mean + (1 - config.t_two_step) * noise
+    # zero_std = torch.zeros_like(act_std, device=act.device)
+    # act_t = torch.cat([act_t_mean, zero_std], dim=-1)
 
     obs_emb = encoder(obs, None)
 
     # --- PREDICTION ---
 
     # 1. Step 1 Prediction
-    raw_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
-    act_mean_pred_0, act_std_pred_0 = raw_pred_0.split(act_dim, dim=-1)
+    act_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
+    # act_mean_pred_0, act_std_pred_0 = raw_pred_0.split(act_dim, dim=-1)
 
     # Create detached copies for Step 2 usage ONLY
-    act_mean_pred_0_detached = act_mean_pred_0.detach()
-    act_std_pred_0_detached = act_std_pred_0.detach()
+    # act_mean_pred_0_detached = act_mean_pred_0.detach()
+    # act_std_pred_0_detached = act_std_pred_0.detach()
 
     # 2. Step 2 Prediction
-    raw_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
-    act_mean_pred_1, _ = raw_pred_1.split(act_dim, dim=-1)
+    act_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
+    # act_mean_pred_1, _ = raw_pred_1.split(act_dim, dim=-1)
 
     # Unnormalize using DETACHED Step 1 output
     # This ensures gradients from Step 2 loss do not flow back to Step 1
-    act_pred_1 = act_mean_pred_0_detached + act_std_pred_0_detached * act_mean_pred_1
+    # act_pred_1 = act_mean_pred_0_detached + act_std_pred_0_detached * act_mean_pred_1
 
     # --- LOSS ---
 
     # 3. Step 1 Loss (Use RAW predictions)
     # This allows Step 1 to learn from its own error
-    loss_mean_0 = get_norm(
-        (act_mean_pred_0 - act_mean) / config.t_two_step, config.norm_type
-    )
-    loss_std_0 = get_norm(
-        (act_std_pred_0 - act_std) / config.t_two_step, config.norm_type
-    )
+    loss_0 = get_norm((act_pred_0 - act_mean) / config.t_two_step, config.norm_type)
 
     # 4. Step 2 Loss
     # This trains Step 2 to be the correct residual given the current Step 1
-    loss_mean_1 = get_norm(
-        (act_pred_1 - act_mean) / (1 - config.t_two_step), config.norm_type
+    loss_1 = get_norm(
+        (act_pred_1 - act_mean) / act_std / (1 - config.t_two_step), config.norm_type
     )
 
-    loss = loss_mean_0 + loss_std_0 + loss_mean_1
+    loss = loss_0 + loss_1
     loss = config.loss_scale * torch.mean(loss)
 
     return loss, {}

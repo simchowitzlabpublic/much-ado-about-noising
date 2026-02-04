@@ -216,3 +216,4 @@ results/
 node_modules/
 cache/
 devel/
+MUJOCO_LOG.TXT

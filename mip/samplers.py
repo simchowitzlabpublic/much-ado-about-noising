@@ -163,3 +163,33 @@ def mip_origin_sampler(
 
     act = act_pred_1
     return act
+
+
+# def pred_std_loss_sampler(
+#     config: OptimizationConfig,
+#     flow_map: FlowMap,
+#     encoder: BaseEncoder,
+#     act_0: torch.Tensor,
+#     obs: torch.Tensor,
+# ):
+#     """Predicted standard deviation loss sampler
+#     Note that now the first step prediction is not scaled by t_two_step,
+#     """
+#     act_0 = torch.zeros_like(act_0, device=act_0.device)
+#     bs = act_0.shape[0]
+#     s = torch.zeros((bs,), device=act_0.device)
+#     t = torch.full((bs,), config.t_two_step, device=act_0.device)
+
+#     obs_emb = encoder(obs, None)
+
+#     act_dim = act_0.shape[-1] // 2
+#     raw_pred_0 = flow_map.get_velocity(s, act_0, obs_emb)
+#     act_mean_pred_0, act_std_pred_0 = raw_pred_0.split(act_dim, dim=-1)
+#     # zero_std = torch.zeros_like(act_std_pred_0, device=act_0.device)
+#     act_t = torch.cat([act_mean_pred_0, act_std_pred_0], dim=-1)
+#     raw_pred_1 = flow_map.get_velocity(t, act_t, obs_emb)
+#     act_mean_pred_1, _ = raw_pred_1.split(act_dim, dim=-1)
+#     act_pred_1 = act_mean_pred_0 + act_std_pred_0 * act_mean_pred_1
+
+#     act = act_pred_1
+#     return act

@@ -353,14 +353,14 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                 act_normed = (
                     act_normed.detach().to("cpu").numpy()
                 )  # (num_envs, horizon, action_dim)
-                if config.optimization.loss_type == "pred_std_loss":
-                    act_dim = config.task.act_dim
-                    if act_normed.shape[-1] != act_dim * 2:
-                        raise ValueError(
-                            "pred_std_loss expects action dim to be doubled "
-                            f"(got {act_normed.shape[-1]} vs {act_dim * 2})"
-                        )
-                    act_normed = act_normed[..., :act_dim]
+                # if config.optimization.loss_type == "pred_std_loss":
+                #     act_dim = config.task.act_dim
+                #     if act_normed.shape[-1] != act_dim * 2:
+                #         raise ValueError(
+                #             "pred_std_loss expects action dim to be doubled "
+                #             f"(got {act_normed.shape[-1]} vs {act_dim * 2})"
+                #         )
+                #     act_normed = act_normed[..., :act_dim]
                 start = config.task.obs_steps - 1
                 abs_start = t - start
                 abs_idx = np.arange(
@@ -492,10 +492,10 @@ def main(config):
         config.task.obs_dim = config.network.emb_dim
     loguru.logger.info("Finished setting up env")
 
-    if config.optimization.loss_type == "pred_std_loss":
-        config.task.pred_act_dim = config.task.act_dim * 2
-    else:
-        config.task.pred_act_dim = config.task.act_dim
+    # if config.optimization.loss_type == "pred_std_loss":
+    #     config.task.pred_act_dim = config.task.act_dim * 2
+    # else:
+    config.task.pred_act_dim = config.task.act_dim
 
     # dataset setup
     dataset = make_dataset(

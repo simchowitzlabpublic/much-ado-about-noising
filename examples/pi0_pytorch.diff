@@ -1,0 +1,68 @@
+--- pi0_pytorch_original.py
++++ pi0_pytorch_mip.py
+@@ -320,10 +320,21 @@
+         if noise is None:
+             noise = self.sample_noise(actions.shape, actions.device)
+ 
+         if time is None:
+             time = self.sample_time(actions.shape[0], actions.device)
++
++        if self.config.loss_type in ["tsd", "mip"]:
++            # in pi0, t=1.0 is noise and t=0.0 is the target distribution
++            # for tsd/mip, sample t from {1.0, 0.1} with equal probability
++            eps = torch.rand(actions.shape[0], device=actions.device)
++            t0 = torch.ones(actions.shape[0], device=actions.device) * 1.0
++            t1 = torch.ones(actions.shape[0], device=actions.device) * 0.1
++            t0_mask = eps < 0.5
++            time = torch.where(t0_mask, t0, t1)
++            # in mip, set noise at t0 to be 0
++            if self.config.loss_type == "mip":
++                zero_noise = torch.zeros_like(noise, device=noise.device)
++                t0_mask_expanded = t0_mask[:, None, None]
++                noise = torch.where(t0_mask_expanded, zero_noise, noise)
+ 
+         time_expanded = time[:, None, None]
+         x_t = time_expanded * noise + (1 - time_expanded) * actions
+         u_t = noise - actions
+@@ -397,12 +408,27 @@
+             inputs_embeds=[prefix_embs, None],
+             use_cache=True,
+         )
++
++        if self.config.loss_type in ["tsd", "mip"]:
++            # override to 2-step schedule for tsd/mip
++            dt0 = torch.tensor(-0.9, dtype=torch.float32, device=device)
++            dt1 = torch.tensor(-0.1, dtype=torch.float32, device=device)
++            dt_list = [dt0, dt1]
++            dt = dt1
++            if self.config.loss_type == "mip":
++                noise = torch.zeros_like(noise, device=noise.device)
++        else:
++            dt = -1.0 / num_steps
++            dt = torch.tensor(dt, dtype=torch.float32, device=device)
++            dt_list = [dt] * num_steps
+ 
+-        dt = -1.0 / num_steps
+-        dt = torch.tensor(dt, dtype=torch.float32, device=device)
+-
+         x_t = noise
+         time = torch.tensor(1.0, dtype=torch.float32, device=device)
++        time_idx = 0
+         while time >= -dt / 2:
+             expanded_time = time.expand(bsize)
+             v_t = self.denoise_step(
+                 state,
+                 prefix_pad_masks,
+                 past_key_values,
+                 x_t,
+                 expanded_time,
+             )
+-
+             # Euler step - use new tensor assignment instead of in-place operation
+-            x_t = x_t + dt * v_t
+-            time += dt
++            dt_local = dt_list[time_idx]
++            x_t = x_t + dt_local * v_t
++            time += dt_local
++            time_idx += 1
+         return x_t

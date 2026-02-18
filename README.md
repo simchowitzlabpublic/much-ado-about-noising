@@ -1,15 +1,20 @@
-# Miniumm Flow Policies Implementation
+<div align="center">
+
+# Minimum Flow Policies Implementation
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![arXiv](https://img.shields.io/badge/arXiv-2406.12345-b31b1b.svg)](https://arxiv.org/abs/2512.01809)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising/)
-[![Project Website](https://img.shields.io/badge/website-project-blue.svg)](https://simchowitzlabpublic.github.io/much-ado-about-noising-project/)
-[![HuggingFace Dataset](https://img.shields.io/badge/HuggingFace-dataset-yellow.svg?logo=huggingface)](https://huggingface.co/datasets/ChaoyiPan/mip-dataset)
-[![HuggingFace Checkpoints](https://img.shields.io/badge/HuggingFace-checkpoints-orange.svg?logo=huggingface)](https://huggingface.co/ChaoyiPan/mip-checkpoints)
 
+<br />
 
+[**Project Website**](https://simchowitzlabpublic.github.io/much-ado-about-noising-project/) •
+[**Documentation**](https://simchowitzlabpublic.github.io/much-ado-about-noising/) •
+[**Dataset**](https://huggingface.co/datasets/ChaoyiPan/mip-dataset) •
+[**Checkpoints**](https://huggingface.co/ChaoyiPan/mip-checkpoints)
+
+</div>
 
 This repository contains the code for the paper **"Much Ado About Noising: Dispelling the Myths of Generative Robotic Control"**. This repository is a PyTorch-based framework for behavior cloning with flow matching and related generative models, incorporating best practices from diffusion model training.
 
@@ -101,6 +106,12 @@ This repository supports multiple training objectives:
 - **LSD** (`lsd`): Lagrangian Self-Distillation
 - **ESD** (`esd`): Euler Self-Distillation
 - **MF** (`mf`): Mean Flow
+
+## Porting MIP to Your Pipeline
+
+If you are interested in porting MIP to your own pipeline, you can refer to [examples/pi0_pytorch.diff](examples/pi0_pytorch.diff). This file demonstrates how to modify the loss function and integrator of a standard flow policy to implement MIP.
+
+> **⚠️ Note on Reproducibility** > Since we have migrated to the latest versions of dependencies (e.g., robomimic) and performed significant code cleanup, the results obtained from this repository may not *exactly* replicate the specific numbers reported in the paper. However, the overall performance trends and conclusions remain the same. Original results is obtained with [cleandiffuser](https://github.com/CleanDiffuserTeam/CleanDiffuser) robomimic environment and dataset.
 
 ## Known Issues
 

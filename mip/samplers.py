@@ -16,7 +16,7 @@ from mip.torch_utils import at_least_ndim
 def get_default_step_list(loss_type: str):
     if loss_type in ["flow", "ctm", "lmd", "psd", "lsd", "esd", "mf"]:
         return 3 ** np.arange(2, -1, -1)
-    elif loss_type in ["regression", "mip", "tsd"]:
+    elif loss_type in ["regression", "mip", "tsd", "straight_flow"]:
         return [1]
     else:
         raise NotImplementedError(f"Loss type {loss_type} not implemented.")
@@ -25,7 +25,7 @@ def get_default_step_list(loss_type: str):
 def get_sampler(loss_type: str):
     if loss_type == "flow":
         return ode_sampler
-    elif loss_type == "regression":
+    elif loss_type in ["regression", "straight_flow"]:
         return regression_sampler
     elif loss_type in ["tsd", "mip"]:
         return mip_sampler

@@ -5,4 +5,4 @@ defaults:
 
 # Override for mh variant
 env_type: "mh"
-dataset_filename: "robomimic/square/mh/low_dim.hdf5"
+dataset_filename: "robomimic/square/mh/low_dim_abs.hdf5"

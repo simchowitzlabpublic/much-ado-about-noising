@@ -109,7 +109,15 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
             env_meta["env_kwargs"]["use_object_obs"] = False
         abs_action = task_config.abs_action
         if abs_action:
-            env_meta["env_kwargs"]["controller_configs"]["control_delta"] = False
+            # robosuite v1.5+: set input_type in nested body_parts config
+            ctrl_cfg = env_meta["env_kwargs"]["controller_configs"]
+            if "body_parts" in ctrl_cfg:
+                for _part_name, part_cfg in ctrl_cfg["body_parts"].items():
+                    if "control_delta" in part_cfg:
+                        part_cfg["input_type"] = "absolute"
+            else:
+                # robosuite < v1.5: flat config
+                ctrl_cfg["control_delta"] = False
 
         if task_config.obs_type == "state":
             env = create_robomimic_env(env_meta=env_meta, obs_keys=task_config.obs_keys)

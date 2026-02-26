@@ -8,7 +8,7 @@ obs_type: "image"
 env_type: "ph"
 
 # HuggingFace dataset configuration - auto-downloads from the repository
-dataset_filename: "robomimic/transport/ph/image.hdf5"
+dataset_filename: "robomimic/transport/ph/image_abs.hdf5"
 
 # Alternative: Use original repo with demo dataset (requires local processing)
 # dataset_repo: "amandlek/robomimic"

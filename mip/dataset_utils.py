@@ -1073,6 +1073,44 @@ class EmptyNormalizer:
         return x
 
 
+class IdentityNormalizer:
+    """Pass-through normalizer that leaves data unchanged."""
+
+    def normalize(self, x):
+        return x
+
+    def unnormalize(self, x):
+        return x
+
+
+class CompositeNormalizer:
+    """Applies different normalizers to different dimension slices.
+
+    Example: for 10D actions [pos(3) + rot6d(6) + grip(1)]:
+        CompositeNormalizer(
+            normalizers=[MinMaxNormalizer(pos_data), IdentityNormalizer(), MinMaxNormalizer(grip_data)],
+            dim_slices=[(0, 3), (3, 9), (9, 10)],
+        )
+    """
+
+    def __init__(self, normalizers: list, dim_slices: list[tuple[int, int]]):
+        assert len(normalizers) == len(dim_slices)
+        self.normalizers = normalizers
+        self.dim_slices = dim_slices
+
+    def normalize(self, x):
+        out = np.empty_like(x, dtype=np.float32)
+        for norm, (start, end) in zip(self.normalizers, self.dim_slices, strict=True):
+            out[..., start:end] = norm.normalize(x[..., start:end])
+        return out
+
+    def unnormalize(self, x):
+        out = np.empty_like(x, dtype=np.float32)
+        for norm, (start, end) in zip(self.normalizers, self.dim_slices, strict=True):
+            out[..., start:end] = norm.unnormalize(x[..., start:end])
+        return out
+
+
 # -----------------------------------------------------------------------------#
 # ------------------------------- useful tool ---------------------------------#
 # -----------------------------------------------------------------------------#

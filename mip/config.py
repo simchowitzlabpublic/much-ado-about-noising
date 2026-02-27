@@ -86,6 +86,7 @@ class TaskConfig:
     obs_type: str = "state"
     env_type: str = "ph"
     abs_action: bool = True
+    action_type: str = "absolute"  # "absolute", "delta", or "relative"
     # Dataset configuration - either HuggingFace or local path
     dataset_repo: str | None = (
         None  # HuggingFace repository ID (e.g., "ChaoyiPan/mip-dataset")

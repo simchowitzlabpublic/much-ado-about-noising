@@ -19,6 +19,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 os.environ["MUJOCO_GL"] = "osmesa"  # noqa: E402
 
 # Import mip modules after setting environment variables
+from mip.action_utils import action_rel_to_abs, get_eef_state_from_obs  # noqa: E402
 from mip.agent import TrainingAgent  # noqa: E402
 from mip.config import Config  # noqa: E402
 from mip.dataset_utils import loop_dataloader  # noqa: E402
@@ -296,6 +297,8 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         "env_step": [],
     }
 
+    action_type = getattr(config.task, "action_type", "absolute")
+
     for i in range(config.log.eval_episodes // config.task.num_envs):
         ep_reward = [0.0] * config.task.num_envs
         obs, _ = envs.reset()
@@ -308,9 +311,30 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
         while t < config.task.max_episode_steps:
             with timed("normalize", inference_times):
                 if config.task.obs_type == "state":
-                    obs = obs.astype(np.float32)  # (num_envs, obs_steps, obs_dim)
+                    obs_raw_np = obs.astype(
+                        np.float32
+                    )  # (num_envs, obs_steps, obs_dim)
+
+                    # Extract EEF state before normalization for relative actions
+                    if action_type == "relative":
+                        # Use the last obs step as reference (UMI Convention B)
+                        ref_obs = obs_raw_np[:, -1, :]  # (num_envs, obs_dim)
+                        eef_pos_batch, eef_rotmat_batch = get_eef_state_from_obs(
+                            ref_obs, dataset.obs_keys, dataset.obs_key_dims
+                        )  # (num_envs, 3), (num_envs, 3, 3)
+                        # Dual-arm: also extract robot1 EEF
+                        if "robot1_eef_pos" in dataset.obs_keys:
+                            eef_pos_batch_1, eef_rotmat_batch_1 = (
+                                get_eef_state_from_obs(
+                                    ref_obs,
+                                    dataset.obs_keys,
+                                    dataset.obs_key_dims,
+                                    robot_prefix="robot1",
+                                )
+                            )
+
                     # normalize obs
-                    obs = dataset.normalizer["obs"]["state"].normalize(obs)
+                    obs = dataset.normalizer["obs"]["state"].normalize(obs_raw_np)
                     obs = torch.tensor(
                         obs, device=config.optimization.device, dtype=torch.float32
                     )  # (num_envs, obs_steps, obs_dim)
@@ -354,6 +378,31 @@ def eval(config: Config, envs, dataset, agent, logger, num_steps=1):
                 start = config.task.obs_steps - 1
                 end = start + config.task.act_steps
                 act = act[:, start:end, :]
+
+                # Convert relative actions back to absolute before env step
+                if action_type == "relative":
+                    act_dim = act.shape[-1]
+                    for env_idx in range(config.task.num_envs):
+                        if act_dim == 20:
+                            # Dual arm: each arm uses its own EEF reference
+                            act_2arm = act[env_idx].reshape(-1, 2, 10)
+                            act_2arm[:, 0] = action_rel_to_abs(
+                                eef_pos_batch[env_idx],
+                                eef_rotmat_batch[env_idx],
+                                act_2arm[:, 0],
+                            )
+                            act_2arm[:, 1] = action_rel_to_abs(
+                                eef_pos_batch_1[env_idx],
+                                eef_rotmat_batch_1[env_idx],
+                                act_2arm[:, 1],
+                            )
+                            act[env_idx] = act_2arm.reshape(-1, 20)
+                        else:
+                            act[env_idx] = action_rel_to_abs(
+                                eef_pos_batch[env_idx],
+                                eef_rotmat_batch[env_idx],
+                                act[env_idx],
+                            )
 
                 if config.task.abs_action and config.task.env_name in [
                     "can",

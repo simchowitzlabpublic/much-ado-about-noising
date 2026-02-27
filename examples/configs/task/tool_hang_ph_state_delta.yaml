@@ -1,0 +1,20 @@
+# @package task
+defaults:
+  - robomimic_base
+  - _self_
+
+env_name: "tool_hang"
+obs_type: "state"
+env_type: "ph"
+abs_action: false
+action_type: "delta"
+
+# HuggingFace dataset configuration - auto-downloads from the repository
+dataset_filename: "robomimic/tool_hang/ph/low_dim.hdf5"
+
+max_episode_steps: 700
+obs_keys: ["object", "robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"]
+
+# Required keys
+horizon: 10
+act_dim: 7

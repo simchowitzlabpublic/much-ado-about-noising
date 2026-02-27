@@ -14,9 +14,13 @@ import torch
 import zarr
 from huggingface_hub import hf_hub_download
 from loguru import logger
+from scipy.spatial.transform import Rotation
 from tqdm import tqdm
 
+from mip.action_utils import action_abs_to_rel
 from mip.dataset_utils import (
+    CompositeNormalizer,
+    IdentityNormalizer,
     ImageNormalizer,
     MinMaxNormalizer,
     ReplayBuffer,
@@ -53,6 +57,7 @@ def make_dataset(task_config, mode="train"):
             "Either dataset_repo/dataset_filename or dataset_path must be provided"
         )
 
+    action_type = getattr(task_config, "action_type", "absolute")
     if task_config.env_name in ["can", "lift", "square", "tool_hang", "transport"]:
         if task_config.obs_type == "state":
             return RobomimicDataset(
@@ -62,6 +67,8 @@ def make_dataset(task_config, mode="train"):
                 pad_before=task_config.obs_steps - 1,
                 pad_after=task_config.act_steps - 1,
                 abs_action=task_config.abs_action,
+                action_type=action_type,
+                obs_steps=task_config.obs_steps,
                 mode=mode,
                 val_dataset_percentage=task_config.val_dataset_percentage,
             )
@@ -92,6 +99,8 @@ class RobomimicDataset(BaseDataset):
         pad_after=0,
         obs_keys=("object", "robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"),
         abs_action=False,
+        action_type="absolute",
+        obs_steps=2,
         rotation_rep="rotation_6d",
         val_dataset_percentage=0.0,
         mode="train",
@@ -103,6 +112,8 @@ class RobomimicDataset(BaseDataset):
         )
         self.val_dataset_percentage = val_dataset_percentage
         self.mode = mode
+        self.action_type = action_type
+        self.obs_steps = obs_steps
 
         self.replay_buffer = ReplayBuffer.create_empty_numpy()
         with h5py.File(dataset_dir) as file:
@@ -184,26 +195,54 @@ class RobomimicDataset(BaseDataset):
                         logger.debug(distance)
                     exit()
 
-                episode = _data_to_obs(
+                episode = data_to_obs(
                     raw_obs=demo["obs"],
                     raw_actions=demo["actions"][:].astype(np.float32),
                     obs_keys=obs_keys,
                     abs_action=abs_action,
                     rotation_transformer=self.rotation_transformer,
                 )
+                # Store EEF state for relative action conversion
+                if action_type == "relative":
+                    eef_pos = demo["obs"]["robot0_eef_pos"][:].astype(np.float32)
+                    eef_quat = demo["obs"]["robot0_eef_quat"][:].astype(np.float32)
+                    episode["eef_pos"] = eef_pos
+                    episode["eef_quat"] = eef_quat
+                    # Dual-arm: also store robot1 EEF state
+                    if "robot1_eef_pos" in demo["obs"]:
+                        episode["eef_pos_1"] = (
+                            demo["obs"]["robot1_eef_pos"][:].astype(np.float32)
+                        )
+                        episode["eef_quat_1"] = (
+                            demo["obs"]["robot1_eef_quat"][:].astype(np.float32)
+                        )
                 self.replay_buffer.add_episode(episode)
 
+        sampler_keys = ["obs", "action"]
+        if action_type == "relative":
+            sampler_keys += ["eef_pos", "eef_quat"]
+            # Dual-arm: include robot1 EEF keys
+            if "eef_pos_1" in self.replay_buffer:
+                sampler_keys += ["eef_pos_1", "eef_quat_1"]
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer,
             sequence_length=horizon,
             pad_before=pad_before,
             pad_after=pad_after,
+            keys=sampler_keys,
         )
 
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.abs_action = abs_action
+        self.obs_keys = list(obs_keys)
+
+        # Store obs key dimensions for EEF state extraction during eval
+        with h5py.File(dataset_dir) as file:
+            demo0_obs = file["data"]["demo_0"]["obs"]
+            self.obs_key_dims = {key: demo0_obs[key].shape[-1] for key in obs_keys}
+
         self.normalizer = self.get_normalizer()
 
     def undo_transform_action(self, action):
@@ -226,20 +265,81 @@ class RobomimicDataset(BaseDataset):
         return uaction
 
     def get_normalizer(self):
-        if self.abs_action:
-            state_normalizer = MinMaxNormalizer(
-                self.replay_buffer["obs"][:]
-            )  # (N, obs_dim)
-            action_normalizer = MinMaxNormalizer(
-                self.replay_buffer["action"][:]
-            )  # (N, action_dim)
+        state_normalizer = MinMaxNormalizer(
+            self.replay_buffer["obs"][:]
+        )  # (N, obs_dim)
+
+        if self.action_type == "relative":
+            # For relative actions, compute relative action stats for normalizer.
+            # Convert all actions abs->rel to get the data range, then use
+            # CompositeNormalizer: MinMax for pos(0:3) and grip(9:10),
+            # Identity for rot6d(3:9) (naturally bounded ~[-1,1]).
+            all_actions = self.replay_buffer["action"][:]  # (N, 10)
+            all_eef_pos = self.replay_buffer["eef_pos"][:]  # (N, 3)
+            all_eef_quat = self.replay_buffer["eef_quat"][:]  # (N, 4)
+
+            # Convert all actions to relative for normalizer fitting
+            all_rotmat = Rotation.from_quat(all_eef_quat).as_matrix()  # (N, 3, 3)
+            act_dim = all_actions.shape[-1]
+            rel_actions = np.empty_like(all_actions)
+
+            if act_dim == 20 and "eef_pos_1" in self.replay_buffer:
+                # Dual-arm: convert each arm with its own EEF reference
+                all_eef_pos_1 = self.replay_buffer["eef_pos_1"][:]
+                all_eef_quat_1 = self.replay_buffer["eef_quat_1"][:]
+                all_rotmat_1 = Rotation.from_quat(all_eef_quat_1).as_matrix()
+                for i in range(len(all_actions)):
+                    rel_actions[i, :10] = action_abs_to_rel(
+                        all_eef_pos[i], all_rotmat[i], all_actions[i, :10]
+                    )
+                    rel_actions[i, 10:] = action_abs_to_rel(
+                        all_eef_pos_1[i], all_rotmat_1[i], all_actions[i, 10:]
+                    )
+            else:
+                for i in range(len(all_actions)):
+                    rel_actions[i] = action_abs_to_rel(
+                        all_eef_pos[i], all_rotmat[i], all_actions[i]
+                    )
+
+            if act_dim == 10:
+                # Single arm: pos(3) + rot6d(6) + grip(1)
+                action_normalizer = CompositeNormalizer(
+                    normalizers=[
+                        MinMaxNormalizer(rel_actions[..., :3]),
+                        IdentityNormalizer(),
+                        MinMaxNormalizer(rel_actions[..., 9:10]),
+                    ],
+                    dim_slices=[(0, 3), (3, 9), (9, 10)],
+                )
+            elif act_dim == 20:
+                # Dual arm: two stacked 10D
+                action_normalizer = CompositeNormalizer(
+                    normalizers=[
+                        MinMaxNormalizer(rel_actions[..., :3]),
+                        IdentityNormalizer(),
+                        MinMaxNormalizer(rel_actions[..., 9:10]),
+                        MinMaxNormalizer(rel_actions[..., 10:13]),
+                        IdentityNormalizer(),
+                        MinMaxNormalizer(rel_actions[..., 19:20]),
+                    ],
+                    dim_slices=[
+                        (0, 3),
+                        (3, 9),
+                        (9, 10),
+                        (10, 13),
+                        (13, 19),
+                        (19, 20),
+                    ],
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported action dim {act_dim} for relative actions"
+                )
         else:
-            state_normalizer = MinMaxNormalizer(
-                self.replay_buffer["obs"][:]
-            )  # (N, obs_dim)
             action_normalizer = MinMaxNormalizer(
                 self.replay_buffer["action"][:]
             )  # (N, action_dim)
+
         return {"obs": {"state": state_normalizer}, "action": action_normalizer}
 
     def sample_to_data(self, sample):
@@ -247,6 +347,36 @@ class RobomimicDataset(BaseDataset):
         state = self.normalizer["obs"]["state"].normalize(state)
 
         action = sample["action"].astype(np.float32)
+
+        # On-the-fly abs→rel conversion for relative action type
+        if self.action_type == "relative":
+            # Reference frame: last observed step (UMI Convention B)
+            ref_idx = self.obs_steps - 1
+            eef_pos = sample["eef_pos"][ref_idx].astype(np.float64)
+            eef_quat = sample["eef_quat"][ref_idx].astype(np.float64)
+            eef_rotmat = Rotation.from_quat(eef_quat).as_matrix()
+
+            act_dim = action.shape[-1]
+            if act_dim == 20 and "eef_pos_1" in sample:
+                # Dual arm: each arm uses its own EEF reference
+                eef_pos_1 = sample["eef_pos_1"][ref_idx].astype(np.float64)
+                eef_quat_1 = sample["eef_quat_1"][ref_idx].astype(np.float64)
+                eef_rotmat_1 = Rotation.from_quat(eef_quat_1).as_matrix()
+                action[:, :10] = action_abs_to_rel(eef_pos, eef_rotmat, action[:, :10])
+                action[:, 10:] = action_abs_to_rel(
+                    eef_pos_1, eef_rotmat_1, action[:, 10:]
+                )
+            elif act_dim == 20:
+                # Dual arm fallback: same EEF for both
+                action_2arm = action.reshape(-1, 2, 10)
+                for arm_idx in range(2):
+                    action_2arm[:, arm_idx] = action_abs_to_rel(
+                        eef_pos, eef_rotmat, action_2arm[:, arm_idx]
+                    )
+                action = action_2arm.reshape(-1, 20)
+            else:
+                action = action_abs_to_rel(eef_pos, eef_rotmat, action)
+
         action = self.normalizer["action"].normalize(action)
         data = {
             "obs": {"state": state},
@@ -267,7 +397,7 @@ class RobomimicDataset(BaseDataset):
         return torch_data
 
 
-def _data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transformer):
+def data_to_obs(raw_obs, raw_actions, obs_keys, abs_action, rotation_transformer):
     obs = np.concatenate([raw_obs[key] for key in obs_keys], axis=-1).astype(np.float32)
 
     if abs_action:

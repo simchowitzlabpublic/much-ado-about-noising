@@ -6,7 +6,7 @@ defaults:
 network_type: "sudeepdit"
 emb_dim: 256  # Used as d_model
 num_layers: 8  # Used as depth
-dropout: 0.0
+dropout: 0.1
 timestep_emb_dim: 128
 
 # SudeepDiT specific configs

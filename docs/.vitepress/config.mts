@@ -28,17 +28,7 @@ export default defineConfig({
         items: [
           { text: 'Adding a New Task', link: '/development/add_new_task' },
           { text: 'Adding a New Method', link: '/development/add_new_method' },
-          { text: 'Network Architecture', link: '/development/networks' }
-        ]
-      },
-      {
-        text: 'API Reference',
-        items: [
-          { text: 'Core Components', link: '/api/core' },
-          { text: 'Losses & Samplers', link: '/api/losses' },
-          { text: 'Networks', link: '/api/networks' },
-          { text: 'Datasets', link: '/api/datasets' },
-          { text: 'Environments', link: '/api/environments' }
+          { text: 'Adding a New Network Architecture', link: '/development/add_new_architecture' }
         ]
       },
       {

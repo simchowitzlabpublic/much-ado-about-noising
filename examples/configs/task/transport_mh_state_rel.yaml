@@ -1,0 +1,8 @@
+# @package task
+defaults:
+  - transport_ph_state_rel
+  - _self_
+
+# Override for mh variant
+env_type: "mh"
+dataset_filename: "robomimic/transport/mh/low_dim_abs.hdf5"

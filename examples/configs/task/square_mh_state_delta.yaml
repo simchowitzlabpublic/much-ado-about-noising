@@ -1,0 +1,8 @@
+# @package task
+defaults:
+  - square_ph_state_delta
+  - _self_
+
+# Override for mh variant
+env_type: "mh"
+dataset_filename: "robomimic/square/mh/low_dim.hdf5"

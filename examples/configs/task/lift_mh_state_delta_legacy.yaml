@@ -1,0 +1,9 @@
+# @package task
+defaults:
+  - lift_ph_state_delta_legacy
+  - _self_
+
+# Override for mh variant
+env_type: "mh"
+dataset_filename: "robomimic/lift/mh/low_dim.hdf5"
+horizon: 10

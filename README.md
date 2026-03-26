@@ -71,11 +71,23 @@ uv run examples/train_pusht.py task=pusht_state
 
 You can download checkpoints from [Hugging Face](https://huggingface.co/ChaoyiPan/mip-checkpoints).
 
+> **Note:** Some released checkpoint use the legacy delta control model `delta_legacy`. Please use the correct profile as below to correctly evaluate that. In the paper, we use `abs` action space for all tasks.
+
 ```bash
-# Evaluate trained model
+# Evaluate released checkpoint (delta_legacy action space)
 uv run examples/train_robomimic.py \
+    task=lift_ph_state_delta_legacy \
     mode=eval \
     optimization.model_path="/path/to/checkpoint.pt"
+
+# Evaluate absolute action space checkpoint
+uv run examples/train_robomimic.py \
+    task=lift_ph_state_abs \
+    mode=eval \
+    optimization.model_path="/path/to/abs_checkpoint.pt"
+
+# Train with a different action space
+uv run examples/train_robomimic.py task=lift_ph_state_abs network=chiunet
 ```
 
 ### Configuration

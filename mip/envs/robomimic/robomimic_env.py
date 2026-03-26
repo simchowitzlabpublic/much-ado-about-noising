@@ -109,7 +109,11 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
             # disable object state observation for image mode
             env_meta["env_kwargs"]["use_object_obs"] = False
         abs_action = task_config.abs_action
-        if abs_action:
+        action_type = getattr(task_config, "action_type", "absolute")
+        # Only set controller to absolute if abs_action is true AND
+        # action_type is not "delta" (delta means keep the default delta controller
+        # even when using rot6d action representation)
+        if abs_action and action_type != "delta":
             # robosuite v1.5+: set input_type in nested body_parts config
             ctrl_cfg = env_meta["env_kwargs"]["controller_configs"]
             if "body_parts" in ctrl_cfg:

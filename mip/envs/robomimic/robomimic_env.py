@@ -10,6 +10,7 @@ from loguru import logger
 
 from mip.config import TaskConfig
 from mip.env_utils import MultiStepWrapper, VideoRecorder, VideoRecordingWrapper
+from mip.envs.async_vector_env import AsyncVectorEnv
 
 
 def make_env(task_config: TaskConfig, idx, render=False, seed=None):
@@ -23,32 +24,35 @@ def make_vec_env(task_config: TaskConfig, seed=None):
     # Suppress output by redirecting stdout temporarily
     original_stdout = sys.stdout
     sys.stdout = io.StringIO()  # Redirect stdout to a string buffer
-    # Use SyncVectorEnv for image-based tasks (rendering contexts can't be pickled)
-    # or when num_envs=1 or save_video=True
-    if (
-        task_config.num_envs == 1
-        or task_config.save_video
-        or task_config.obs_type == "image"
-    ):
-        vnc_env_class = gym.vector.SyncVectorEnv
-    else:
-        vnc_env_class = gym.vector.AsyncVectorEnv
-    if task_config.env_name in ["can", "lift", "square", "tool_hang", "transport"]:
-        try:
-            envs = vnc_env_class(
-                [
-                    make_robomimic_env(task_config, idx, False, seed=seed)
-                    for idx in range(task_config.num_envs)
-                ],
-            )
-        finally:
-            sys.stdout = original_stdout  # Restore stdout
-        return envs
-    else:
+    # SyncVectorEnv is required when save_video=True (eval loop peeks at
+    # envs.envs[0]) or when only one env is requested. Otherwise use the
+    # fork-based AsyncVectorEnv; image tasks route through it with a
+    # no-render dummy_env_fn so the parent never touches an OpenGL context.
+    use_async = task_config.num_envs > 1 and not task_config.save_video
+    if task_config.env_name not in ["can", "lift", "square", "tool_hang", "transport"]:
         raise ValueError(f"Environment {task_config.env_name} not supported")
+    try:
+        env_fns = [
+            make_robomimic_env(task_config, idx, False, seed=seed)
+            for idx in range(task_config.num_envs)
+        ]
+        if use_async:
+            dummy_env_fn = (
+                make_robomimic_env(task_config, 0, False, seed=seed, no_render=True)
+                if task_config.obs_type == "image"
+                else None
+            )
+            envs = AsyncVectorEnv(env_fns, dummy_env_fn=dummy_env_fn)
+        else:
+            envs = gym.vector.SyncVectorEnv(env_fns)
+    finally:
+        sys.stdout = original_stdout  # Restore stdout
+    return envs
 
 
-def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
+def make_robomimic_env(
+    task_config: TaskConfig, idx, render=False, seed=None, no_render=False
+):
     from mip.envs.robomimic.robomimic_image_wrapper import (
         RobomimicImageWrapper,
     )
@@ -74,15 +78,14 @@ def make_robomimic_env(task_config: TaskConfig, idx, render=False, seed=None):
                     modality_mapping[attr.get("type", "low_dim")].append(key)
                 ObsUtils.initialize_obs_modality_mapping_from_dict(modality_mapping)
 
+            offscreen = (
+                enable_render and task_config.obs_type == "image" and not no_render
+            )
             env = EnvUtils.create_env_from_metadata(
                 env_meta=env_meta,
                 render=False,
-                render_offscreen=enable_render
-                if task_config.obs_type == "image"
-                else False,
-                use_image_obs=enable_render
-                if task_config.obs_type == "image"
-                else False,
+                render_offscreen=offscreen,
+                use_image_obs=offscreen,
             )
             return env
 

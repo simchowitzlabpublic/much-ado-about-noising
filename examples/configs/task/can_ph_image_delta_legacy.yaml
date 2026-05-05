@@ -1,0 +1,8 @@
+# @package task
+defaults:
+  - can_ph_image
+  - _self_
+
+action_type: "delta"
+
+dataset_filename: "robomimic/can/ph/image.hdf5"
